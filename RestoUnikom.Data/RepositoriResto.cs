@@ -380,7 +380,31 @@ namespace RestoUnikom.Data
                 .Where(p => p.StatusPesanan.Equals(statusPesanan.ToString(), StringComparison.OrdinalIgnoreCase))
                 .ToListAsync();
         }
-        
+
+        /// <summary>
+        /// Mengambil daftar pesanan berdasarkan apakah sudah dibayar atau belum.
+        /// </summary>
+        /// <param name="dibayarKah"></param>
+        /// <returns></returns>
+        public async Task<List<Pesanan>> GetPesanansByDibayarkahAsync(bool dibayarKah)
+        {
+            return await _context.Pesanans
+                .Where(p => p.DibayarKah == (dibayarKah ? 1 : 0))
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Mengambil daftar pesanan berdasarkan Pegawai ID dan Tanggal Pesanan.
+        /// </summary>
+        /// <param name="pegawaiId"></param>
+        /// <param name="tanggal"></param>
+        /// <returns></returns>
+        public async Task<List<Pesanan>> GetPesanansByPegawaiIdDanTanggalAsync(int pegawaiId, DateTime tanggal)
+        {
+            return await _context.Pesanans
+                .Where(p => p.PegawaiId == pegawaiId && DateTime.Parse(p.TanggalPesanan).Date == tanggal.Date)
+                .ToListAsync();
+        }
         #endregion // PESANAN
     }
 }

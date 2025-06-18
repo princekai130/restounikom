@@ -14,7 +14,7 @@ namespace RestoUnikom.Data
         #region ENUMS
 
         /// <summary>
-        /// Enum untuk status meja/restoran.
+        /// Enum untuk status meja.
         /// </summary>
         public enum StatusMeja
         {
@@ -24,13 +24,24 @@ namespace RestoUnikom.Data
         }
 
         /// <summary>
-        /// Enum untuk kategori menu restoran.
+        /// Enum untuk kategori menu.
         /// </summary>
         public enum KategoriMenu
         {
             Makanan,
             Minuman,
             Camilan
+        }
+
+        /// <summary>
+        /// Enum untuk status pesanan.
+        /// </summary>
+        public enum StatusPesanan
+        {
+            Menunggu,
+            Disiapkan,
+            Selesai,
+            Dibatalkan
         }
 
         #endregion // ENUMS
@@ -305,5 +316,71 @@ namespace RestoUnikom.Data
         }
 
         #endregion // MENUS
+
+        #region PESANAN
+
+        /// <summary>
+        /// Mengambil daftar pesanan.
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public async Task<Pesanan?> GetPesananByIdAsync(int id)
+        {
+            return await _context.Pesanans
+                .Include(p => p.Meja)
+                .Include(p => p.DetailPesanans)
+                .FirstOrDefaultAsync(p => p.PesananId == id);
+        }
+
+        /// <summary>
+        /// Mengambil daftar pesanan berdasarkan ID Meja.
+        /// </summary>
+        /// <param name="mejaId"></param>
+        /// <returns></returns>
+        public async Task<List<Pesanan>> GetPesanansByMejaIdAsync(int mejaId)
+        {
+            return await _context.Pesanans
+                .Include(p => p.Meja)
+                .Where(p => p.Meja.MejaId == mejaId)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Mengambil daftar pesanan berdasarkan  Nomor Meja.
+        /// </summary>
+        /// <returns></returns>
+        public async Task<List<Pesanan>> GetPesanansByNomorMejaAsync(string nomorMeja)
+        {
+            return await _context.Pesanans
+                .Include(p => p.Meja)
+                .Where(p => p.Meja.NomorMeja == nomorMeja)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Mengambil daftar pesanan berdasarkan Tanggal.
+        /// </summary>
+        /// <param name="tanggal"></param>
+        /// <returns></returns>
+        public async Task<List<Pesanan>> GetPesanansByTanggalAsync(DateTime tanggal)
+        { 
+            return await _context.Pesanans
+                .Where(p => DateTime.Parse(p.TanggalPesanan).Date == tanggal.Date)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Mengambil daftar pesanan berdasarkan Status Pesanan.
+        /// </summary>
+        /// <param name="statusPesanan"></param>
+        /// <returns></returns>
+        public async Task<List<Pesanan>> GetPesanansByStatusAsync(StatusPesanan statusPesanan)
+        {
+            return await _context.Pesanans
+                .Where(p => p.StatusPesanan.Equals(statusPesanan.ToString(), StringComparison.OrdinalIgnoreCase))
+                .ToListAsync();
+        }
+        
+        #endregion // PESANAN
     }
 }

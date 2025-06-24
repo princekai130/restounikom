@@ -1,0 +1,10 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+
+<MudNavMenu>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
+    <AuthorizeView Roles="Pelayan,Admin">
+        <Authorized>
+            <MudNavLink Href="pemesanan" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AddShoppingCart">Pemesanan</MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+</MudNavMenu>

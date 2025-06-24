@@ -1,0 +1,48 @@
+﻿@using MudBlazor
+@using RestoUnikom.Data.Models
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-2">Pesan: @Menu?.NamaMenu</MudText>
+        <MudTextField @bind-Value="Jumlah"
+                      Label="Jumlah"
+                      Variant="Variant.Outlined"
+                      InputType="InputType.Number"
+                      Min="1"
+                      Max="@(Menu?.StokTersedia ?? 1)"
+                      Immediate="true"
+                      Required="true"
+                      Class="mb-2" />
+        <MudTextField @bind-Value="Catatan"
+                      Label="Catatan (opsional)"
+                      Variant="Variant.Outlined"
+                      Lines="2"
+                      Class="mb-2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary"
+                   Disabled="@(Jumlah < 1 || Jumlah > (Menu?.StokTersedia ?? 0))"
+                   OnClick="Submit">Tambah</MudButton>
+        <MudButton Color="Color.Secondary" OnClick="Cancel">Batal</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public Menu? Menu { get; set; }
+    private int Jumlah { get; set; } = 1;
+    private string Catatan { get; set; } = string.Empty;
+
+    private void Submit()
+    {
+        if (Menu == null || Jumlah < 1 || Jumlah > Menu.StokTersedia)
+        {
+            Snackbar.Add("Jumlah pesanan tidak valid!", Severity.Error);
+            return;
+        }
+        MudDialog.Close(DialogResult.Ok((Jumlah, Catatan)));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,99 @@
+﻿@page "/"
+@inject RestoUnikom.WebUi2.Authentication.CustomAuthenticationStateProvider AuthService
+@inject NavigationManager Navigation
+@inject MudBlazor.ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Components.Authorization
+
+@layout RestoUnikom.WebUi2.Components.Layout.MainLayout
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="d-flex flex-column align-center justify-center" Style="min-height: 100vh; background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/images/resto-bg.png'); background-size: cover; background-position: center;">
+    @if (_isAuthenticated == false)
+    {
+        <MudPaper Elevation="3" Class="pa-8 login-paper" Style="max-width: 400px; border-radius: 12px;">
+            <MudText Typo="Typo.h4" Align="Align.Center" Color="Color.Primary" Class="mb-2">Resto Unikom</MudText>
+            <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-6">Masuk untuk mengelola pemesanan</MudText>
+            <MudForm @ref="_form" @bind-IsValid="@_isValid">
+                <MudTextField T="string" Label="Nama Pengguna" @bind-Value="_namaPengguna" Variant="Variant.Outlined" Required="true" Class="mb-4" />
+                <MudTextField T="string" Label="Kata Sandi" @bind-Value="_kataSandi" Variant="Variant.Outlined" InputType="InputType.Password" Required="true" Class="mb-4" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Disabled="@(!_isValid || _isProcessing)" OnClick="SubmitLogin">
+                    @if (_isProcessing)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Login
+                </MudButton>
+            </MudForm>
+        </MudPaper>
+    }
+    else if (_isAuthenticated == true)
+    {
+        <MudPaper Elevation="3" Class="pa-8 login-paper" Style="max-width: 400px; border-radius: 12px;">
+            <MudText Typo="Typo.h4" Align="Align.Center" Color="Color.Primary" Class="mb-2">Selamat datang di Resto Unikom!</MudText>
+            <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-6">Silakan pilih menu di navigasi.</MudText>
+        </MudPaper>
+    }
+</MudContainer>
+
+<style>
+    .login-paper {
+        background-color: var(--mud-palette-surface, #23232d) !important;
+    }
+</style>
+
+@code {
+    private MudForm _form = null!;
+    private bool _isValid = false;
+    private bool _isProcessing = false;
+    private string _namaPengguna = string.Empty;
+    private string _kataSandi = string.Empty;
+    private bool? _isAuthenticated = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+        AuthService.AuthenticationStateChanged += OnAuthenticationStateChanged;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        var authState = await task;
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+        // Force reload agar layout dan state benar-benar update
+        Navigation.NavigateTo("/", true);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SubmitLogin()
+    {
+        _isProcessing = true;
+        try
+        {
+            await AuthService.LoginAsync(_namaPengguna, _kataSandi);
+            Snackbar.Add("Login berhasil!", Severity.Success);
+            _namaPengguna = string.Empty;
+            _kataSandi = string.Empty;
+            // Force reload agar layout dan state benar-benar update
+            Navigation.NavigateTo("/", true);
+        }
+        catch
+        {
+            Snackbar.Add("Nama pengguna atau kata sandi salah!", Severity.Error);
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+    }
+}

@@ -73,17 +73,22 @@ namespace RestoUnikom.WebUi2
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode();
 
-            // Pastikan folder Datas ada di output directory
+            // Pastikan folder Datas dan GambarMenu ada di output directory
             var datasPath = Path.Combine(AppContext.BaseDirectory, "Datas");
             if (!Directory.Exists(datasPath))
             {
                 Directory.CreateDirectory(datasPath);
             }
+            var gambarMenuPath = Path.Combine(datasPath, "GambarMenu");
+            if (!Directory.Exists(gambarMenuPath))
+            {
+                Directory.CreateDirectory(gambarMenuPath);
+            }
 
             app.UseStaticFiles(new StaticFileOptions
             {
-                FileProvider = new PhysicalFileProvider(datasPath),
-                RequestPath = "/datas"
+                FileProvider = new PhysicalFileProvider(gambarMenuPath),
+                RequestPath = "/datas/GambarMenu"
             });
 
             app.Run();

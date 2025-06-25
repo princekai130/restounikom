@@ -7,4 +7,9 @@
             <MudNavLink Href="pemesanan" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AddShoppingCart">Pemesanan</MudNavLink>
         </Authorized>
     </AuthorizeView>
+    <AuthorizeView Roles="Kasir,Pelayan,Koki,Admin">
+        <Authorized>
+            <MudNavLink Href="penyiapan" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ListAlt">Penyiapan</MudNavLink>
+        </Authorized>
+    </AuthorizeView>
 </MudNavMenu>

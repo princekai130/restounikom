@@ -52,6 +52,7 @@ namespace RestoUnikom.Data
             Menunggu,
             Disiapkan,
             Selesai,
+            Diantarkan,
             Dibatalkan
         }
 
@@ -1068,9 +1069,11 @@ namespace RestoUnikom.Data
         /// <param name="tanggal"></param>
         /// <returns></returns>
         public async Task<List<Pesanan>> GetPesanansByTanggalAsync(DateTime tanggal)
-        { 
+        {
+            string tanggalStr = tanggal.ToString("yyyy-MM-dd");
             return await _context.Pesanans
-                .Where(p => DateTime.Parse(p.TanggalPesanan).Date == tanggal.Date)
+                .Include(p => p.Meja)
+                .Where(p => p.TanggalPesanan.Substring(0, 10) == tanggalStr)
                 .ToListAsync();
         }
 
@@ -1106,8 +1109,9 @@ namespace RestoUnikom.Data
         /// <returns></returns>
         public async Task<List<Pesanan>> GetPesanansByPegawaiIdDanTanggalAsync(int pegawaiId, DateTime tanggal)
         {
+            string tanggalStr = tanggal.ToString("yyyy-MM-dd");
             return await _context.Pesanans
-                .Where(p => p.PegawaiId == pegawaiId && DateTime.Parse(p.TanggalPesanan).Date == tanggal.Date)
+                .Where(p => p.PegawaiId == pegawaiId && p.TanggalPesanan.Substring(0, 10) == tanggalStr)
                 .ToListAsync();
         }
 
@@ -1319,8 +1323,9 @@ namespace RestoUnikom.Data
         /// <returns></returns>
         public async Task<List<Pembayaran>> GetPembayaransByTanggalAsync(DateTime tanggal)
         {
+            string tanggalStr = tanggal.ToString("yyyy-MM-dd");
             return await _context.Pembayarans
-                .Where(p => DateTime.Parse(p.TanggalBayar).Date == tanggal.Date)
+                .Where(p => p.TanggalBayar.Substring(0, 10) == tanggalStr)
                 .ToListAsync();
         }
 
@@ -1399,8 +1404,9 @@ namespace RestoUnikom.Data
 
         public async Task<List<Ulasan>> GetUlasansByTanggalAsync(DateTime tanggal)
         {
+            string tanggalStr = tanggal.ToString("yyyy-MM-dd");
             return await _context.Ulasans
-                .Where(u => DateTime.Parse(u.TanggalUlasan).Date == tanggal.Date)
+                .Where(u => u.TanggalUlasan.Substring(0, 10) == tanggalStr)
                 .ToListAsync();
         }
 

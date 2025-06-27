@@ -30,8 +30,9 @@ namespace RestoUnikom.Data
         public enum StatusMeja
         {
             Kosong,
+            Dipesan,
             Ditempati,
-            Dipesan
+            Disiapkan
         }
 
         /// <summary>
@@ -264,6 +265,25 @@ namespace RestoUnikom.Data
             return null;
         }
 
+        /// <summary>
+        /// Mengupdate data pegawai.
+        /// </summary>
+        /// <param name="pegawai"></param>
+        /// <returns></returns>
+        public async Task<Pegawai?> UpdatePegawaiAsync(Pegawai pegawai)
+        {
+            var tracked = await _context.Pegawais.FindAsync(pegawai.PegawaiId);
+            if (tracked == null) return null;
+            tracked.NamaPegawai = pegawai.NamaPegawai;
+            tracked.NamaPengguna = pegawai.NamaPengguna;
+            tracked.KataSandi = pegawai.KataSandi;
+            tracked.AktifKah = pegawai.AktifKah;
+            tracked.PeranPegawai = pegawai.PeranPegawai;
+            tracked.TanggalMulai = pegawai.TanggalMulai;
+            await _context.SaveChangesAsync();
+            return tracked;
+        }
+
         #endregion // PEGAWAI
 
         #region MEJAS
@@ -274,7 +294,7 @@ namespace RestoUnikom.Data
         /// <returns></returns>
         public async Task<List<Meja>> GetMejasAsync()
         {
-            return await _context.Mejas.ToListAsync();
+            return await _context.Mejas.AsNoTracking().ToListAsync();
         }
 
         /// <summary>
@@ -384,10 +404,12 @@ namespace RestoUnikom.Data
         /// <returns></returns>
         public async Task<Meja?> SetStatusMejaAsync(Meja meja, StatusMeja status)
         {
-            meja.StatusMeja = status.ToString();
-            _context.Mejas.Update(meja);
+            // Ambil ulang entitas dari DbContext agar hanya satu instance yang di-track
+            var trackedMeja = await _context.Mejas.FindAsync(meja.MejaId);
+            if (trackedMeja == null) return null;
+            trackedMeja.StatusMeja = status.ToString();
             await _context.SaveChangesAsync();
-            return meja;
+            return trackedMeja;
         }
 
         /// <summary>
@@ -397,9 +419,16 @@ namespace RestoUnikom.Data
         /// <returns></returns>
         public async Task<Meja?> SetStatusMejaAsync(Meja meja)
         {
-            _context.Mejas.Update(meja);
+            // Ambil ulang entitas dari DbContext agar hanya satu instance yang di-track
+            var trackedMeja = await _context.Mejas.FindAsync(meja.MejaId);
+            if (trackedMeja == null) return null;
+            // Salin semua properti yang perlu diupdate
+            trackedMeja.StatusMeja = meja.StatusMeja;
+            trackedMeja.NomorMeja = meja.NomorMeja;
+            trackedMeja.Kapasitas = meja.Kapasitas;
+            trackedMeja.AktifKah = meja.AktifKah;
             await _context.SaveChangesAsync();
-            return meja;
+            return trackedMeja;
         }
 
         /// <summary>
@@ -683,6 +712,27 @@ namespace RestoUnikom.Data
             return null;
         }
 
+        /// <summary>
+        /// Mengupdate data reservasi.
+        /// </summary>
+        /// <param name="reservasi"></param>
+        /// <returns></returns>
+        public async Task<Reservasi?> UpdateReservasiAsync(Reservasi reservasi)
+        {
+            var tracked = await _context.Reservasis.FindAsync(reservasi.ReservasiId);
+            if (tracked == null) return null;
+            tracked.MejaId = reservasi.MejaId;
+            tracked.PegawaiId = reservasi.PegawaiId;
+            tracked.NamaPelanggan = reservasi.NamaPelanggan;
+            tracked.JumlahPelanggan = reservasi.JumlahPelanggan;
+            tracked.TanggalReservasi = reservasi.TanggalReservasi;
+            tracked.WaktuReservasi = reservasi.WaktuReservasi;
+            tracked.StatusReservasi = reservasi.StatusReservasi;
+            tracked.AktifKah = reservasi.AktifKah;
+            await _context.SaveChangesAsync();
+            return tracked;
+        }
+
         #endregion // RESERVASI
 
         #region MENUS
@@ -874,6 +924,28 @@ namespace RestoUnikom.Data
             return null;
         }
 
+        /// <summary>
+        /// Mengupdate data menu.
+        /// </summary>
+        /// <param name="menu"></param>
+        /// <returns></returns>
+        public async Task<Menu?> UpdateMenuAsync(Menu menu)
+        {
+            var tracked = await _context.Menus.FindAsync(menu.MenuId);
+            if (tracked == null) return null;
+            tracked.NamaMenu = menu.NamaMenu;
+            tracked.Kategori = menu.Kategori;
+            tracked.Harga = menu.Harga;
+            tracked.TersediaKah = menu.TersediaKah;
+            tracked.StokTersedia = menu.StokTersedia;
+            tracked.Deskripsi = menu.Deskripsi;
+            tracked.GambarMenu = menu.GambarMenu;
+            tracked.WaktuPembuatan = menu.WaktuPembuatan;
+            tracked.TanggalDitambahkan = menu.TanggalDitambahkan;
+            await _context.SaveChangesAsync();
+            return tracked;
+        }
+
         #endregion // MENUS
 
         #region MENUBAHAN
@@ -924,6 +996,22 @@ namespace RestoUnikom.Data
             _context.MenuBahans.Add(menuBahanBaru);
             await _context.SaveChangesAsync();
             return menuBahanBaru;
+        }
+
+        /// <summary>
+        /// Mengupdate data menu bahan.
+        /// </summary>
+        /// <param name="menuBahan"></param>
+        /// <returns></returns>
+        public async Task<MenuBahan?> UpdateMenuBahanAsync(MenuBahan menuBahan)
+        {
+            var tracked = await _context.MenuBahans.FindAsync(menuBahan.MenuBahanId);
+            if (tracked == null) return null;
+            tracked.MenuId = menuBahan.MenuId;
+            tracked.BahanId = menuBahan.BahanId;
+            tracked.JumlahDibutuhkan = menuBahan.JumlahDibutuhkan;
+            await _context.SaveChangesAsync();
+            return tracked;
         }
 
         #endregion // MENUBAHAN
@@ -1019,6 +1107,22 @@ namespace RestoUnikom.Data
                 return stokBahan;
             }
             return null;
+        }
+
+        /// <summary>
+        /// Mengupdate data stok bahan.
+        /// </summary>
+        /// <param name="stokBahan"></param>
+        /// <returns></returns>
+        public async Task<StokBahan?> UpdateStokBahanAsync(StokBahan stokBahan)
+        {
+            var tracked = await _context.StokBahans.FindAsync(stokBahan.BahanId);
+            if (tracked == null) return null;
+            tracked.BahanId = stokBahan.BahanId;
+            tracked.JumlahStok = stokBahan.JumlahStok;
+            tracked.TersediaKah = stokBahan.TersediaKah;
+            await _context.SaveChangesAsync();
+            return tracked;
         }
 
         #endregion // STOKBAHAN
@@ -1169,6 +1273,27 @@ namespace RestoUnikom.Data
             }
             return null;
         }
+
+        /// <summary>
+        /// Mengupdate data pesanan.
+        /// </summary>
+        /// <param name="pesanan"></param>
+        /// <returns></returns>
+        public async Task<Pesanan?> UpdatePesananAsync(Pesanan pesanan)
+        {
+            var tracked = await _context.Pesanans.FindAsync(pesanan.PesananId);
+            if (tracked == null) return null;
+            tracked.MejaId = pesanan.MejaId;
+            tracked.PegawaiId = pesanan.PegawaiId;
+            tracked.TanggalPesanan = pesanan.TanggalPesanan;
+            tracked.StatusPesanan = pesanan.StatusPesanan;
+            tracked.TotalHarga = pesanan.TotalHarga;
+            tracked.WaktuSelesai = pesanan.WaktuSelesai;
+            tracked.DibayarKah = pesanan.DibayarKah;
+            await _context.SaveChangesAsync();
+            return tracked;
+        }
+
         #endregion // PESANAN
 
         #region DETAIL_PESANAN
@@ -1421,6 +1546,20 @@ namespace RestoUnikom.Data
             return ulasanBaru;
         }
 
+        /// <summary>
+        /// Mengupdate data ulasan.
+        /// </summary>
+        /// <param name="ulasan"></param>
+        /// <returns></returns>
+        public async Task<Ulasan?> UpdateUlasanAsync(Ulasan ulasan)
+        {
+            var tracked = await _context.Ulasans.FindAsync(ulasan.PesananId);
+            if (tracked == null) return null;
+            // update properti ulasan lain jika ada
+            await _context.SaveChangesAsync();
+            return tracked;
+        }
+
         #endregion // ULASAN
 
         #region LOGAKTIVITAS
@@ -1466,64 +1605,22 @@ namespace RestoUnikom.Data
         }
 
         /// <summary>
-        /// Mengambil daftar log aktivitas berdasarkan ID Pegawai.
+        /// Mengupdate data log aktivitas.
         /// </summary>
-        /// <param name="pegawaiId"></param>
+        /// <param name="log"></param>
         /// <returns></returns>
-        public async Task<List<LogAktivita>> GetLogAktivitasByPegawaiIdAsync(int pegawaiId)
+        public async Task<LogAktivita?> UpdateLogAktivitaAsync(LogAktivita log)
         {
-            return await _context.LogAktivitas
-                .Where(l => l.PegawaiId == pegawaiId)
-                .ToListAsync();
-        }
-
-        /// <summary>
-        /// Mengambil daftar log aktivitas berdasarkan tanggal aktivitas.
-        /// </summary>
-        /// <param name="tanggal"></param>
-        /// <returns></returns>
-        public async Task<List<LogAktivita>> GetLogAktivitasByTanggalAsync(DateTime tanggal)
-        {
-            return await _context.LogAktivitas
-                .Where(l => l.TanggalAktivitas.Date == tanggal.Date)
-                .ToListAsync();
-        }
-
-        /// <summary>
-        /// Mengambil daftar log aktivitas berdasarkan apakah berhasil atau tidak.
-        /// </summary>
-        /// <param name="berhasilKah"></param>
-        /// <returns></returns>
-        public async Task<List<LogAktivita>> GetLogAktivitasByBerhasilKahAsync(bool berhasilKah)
-        {
-            return await _context.LogAktivitas
-                .Where(l => l.BerhasilKah == (berhasilKah ? 1 : 0))
-                .ToListAsync();
-        }
-
-        /// <summary>
-        /// Mengambil daftar log aktivitas berdasarkan ID Pegawai dan Tanggal Aktivitas.
-        /// </summary>
-        /// <param name="pegawaiId"></param>
-        /// <param name="tanggal"></param>
-        /// <returns></returns>
-        public async Task<List<LogAktivita>> GetLogAktivitasByPegawaiIdDanTanggalAsync(int pegawaiId, DateTime tanggal)
-        {
-            return await _context.LogAktivitas
-                .Where(l => l.PegawaiId == pegawaiId && l.TanggalAktivitas.Date == tanggal.Date)
-                .ToListAsync();
-        }
-
-        /// <summary>
-        /// Mengambil daftar log aktivitas berdasarkan deskripsi aktivitas.
-        /// </summary>
-        /// <param name="deskripsi"></param>
-        /// <returns></returns>
-        public async Task<List<LogAktivita>> GetLogAktivitasByDeskripsiAsync(string deskripsi)
-        {
-            return await _context.LogAktivitas
-                .Where(l => l.Deskripsi.ToLower().Contains(deskripsi.ToLower()))
-                .ToListAsync();
+            var tracked = await _context.LogAktivitas.FindAsync(log.LogId);
+            if (tracked == null) return null;
+            tracked.PegawaiId = log.PegawaiId;
+            tracked.Aktivitas = log.Aktivitas;
+            tracked.TanggalAktivitas = log.TanggalAktivitas;
+            tracked.JenisAktivitas = log.JenisAktivitas;
+            tracked.Deskripsi = log.Deskripsi;
+            tracked.BerhasilKah = log.BerhasilKah;
+            await _context.SaveChangesAsync();
+            return tracked;
         }
 
         #endregion // LOGAKTIVITAS

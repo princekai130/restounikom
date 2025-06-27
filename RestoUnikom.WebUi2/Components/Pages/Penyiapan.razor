@@ -3,10 +3,12 @@
 @inject MudBlazor.ISnackbar Snackbar
 @inject MudBlazor.IDialogService DialogService
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationState
+@inject NavigationManager NavigationManager
 @using Microsoft.AspNetCore.Components.Authorization
 @using MudBlazor
 @using RestoUnikom.Data.Models
 @using System.Security.Claims
+@using Microsoft.AspNetCore.SignalR.Client
 
 <PageTitle>Penyiapan Pesanan</PageTitle>
 
@@ -70,6 +72,7 @@
     private bool isLoading = true;
     private string? userRole;
     private DateTime tanggalPilihan = DateTime.Today;
+    private HubConnection? hubConnection;
 
     protected override async Task OnInitializedAsync()
     {
@@ -79,6 +82,28 @@
         userRole = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
         await LoadPesanan();
         isLoading = false;
+
+        // Inisialisasi koneksi SignalR
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/mejahub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.On<int>("PesananChanged", async (pesananId) =>
+        {
+            await LoadPesanan();
+            await InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
     }
 
     private async Task LoadPesanan()
@@ -107,7 +132,12 @@
             if (result != null)
             {
                 Snackbar.Add($"Status pesanan diubah ke {targetStatus}", Severity.Success);
-                await LoadPesanan();
+                // Broadcast ke SignalR agar client lain update daftar pesanan
+                if (hubConnection is not null && hubConnection.State == HubConnectionState.Connected)
+                {
+                    await hubConnection.SendAsync("BroadcastPesananChanged", pesanan.PesananId);
+                }
+                // Tidak perlu panggil LoadPesanan di sini, akan otomatis via SignalR
             }
             else
             {

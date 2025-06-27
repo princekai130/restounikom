@@ -1,11 +1,15 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using RestoUnikom.Data.Models;
+using System.Threading;
 
 namespace RestoUnikom.Data
 {
     public class RepositoriResto
     {
         private readonly RestoDataContext _context;
+        // Tambahkan semaphore untuk mencegah akses paralel pada DbContext
+        private readonly SemaphoreSlim _dbSemaphore = new(1, 1);
+
         public RepositoriResto(RestoDataContext context)
         {
             _context = context;
@@ -324,9 +328,17 @@ namespace RestoUnikom.Data
         /// <returns></returns>
         public async Task<List<Meja>> GetMejasKosongAsync()
         {
-            return await _context.Mejas
-                .Where(m => m.StatusMeja == StatusMeja.Kosong.ToString())
-                .ToListAsync();
+            await _dbSemaphore.WaitAsync();
+            try
+            {
+                return await _context.Mejas
+                    .Where(m => m.StatusMeja == StatusMeja.Kosong.ToString())
+                    .ToListAsync();
+            }
+            finally
+            {
+                _dbSemaphore.Release();
+            }
         }
 
         /// <summary>
@@ -360,6 +372,28 @@ namespace RestoUnikom.Data
         {
             return await _context.Mejas
                 .FirstOrDefaultAsync(m => m.NomorMeja == nomor);
+        }
+
+        /// <summary>
+        /// Mengambil daftar meja yang statusnya kosong dan tidak sedang ada pesanan aktif (Menunggu/Disiapkan).
+        /// </summary>
+        /// <returns></returns>
+        public async Task<List<Meja>> GetMejasKosongDanTidakAdaPesananAktifAsync()
+        {
+            // Ambil semua meja yang statusnya kosong
+            var mejasKosong = await _context.Mejas
+                .Where(m => m.StatusMeja == StatusMeja.Kosong.ToString())
+                .ToListAsync();
+
+            // Ambil semua mejaId yang sedang ada pesanan aktif (Menunggu/Disiapkan)
+            var mejaIdDenganPesananAktif = await _context.Pesanans
+                .Where(p => p.StatusPesanan == StatusPesanan.Menunggu.ToString() || p.StatusPesanan == StatusPesanan.Disiapkan.ToString())
+                .Select(p => p.MejaId)
+                .Distinct()
+                .ToListAsync();
+
+            // Filter meja kosong yang tidak sedang ada pesanan aktif
+            return mejasKosong.Where(m => !mejaIdDenganPesananAktif.Contains(m.MejaId)).ToList();
         }
 
         /// <summary>
@@ -1174,11 +1208,63 @@ namespace RestoUnikom.Data
         /// <returns></returns>
         public async Task<List<Pesanan>> GetPesanansByTanggalAsync(DateTime tanggal)
         {
-            string tanggalStr = tanggal.ToString("yyyy-MM-dd");
-            return await _context.Pesanans
-                .Include(p => p.Meja)
-                .Where(p => p.TanggalPesanan.Substring(0, 10) == tanggalStr)
-                .ToListAsync();
+            await _dbSemaphore.WaitAsync();
+            try
+            {
+                string tanggalStr = tanggal.ToString("yyyy-MM-dd");
+                // Proyeksikan langsung ke POCO tanpa circular reference
+                var result = await _context.Pesanans
+                    .AsNoTracking()
+                    .Where(p => p.TanggalPesanan.Substring(0, 10) == tanggalStr)
+                    .Select(p => new Pesanan
+                    {
+                        PesananId = p.PesananId,
+                        MejaId = p.MejaId,
+                        PegawaiId = p.PegawaiId,
+                        TanggalPesanan = p.TanggalPesanan,
+                        StatusPesanan = p.StatusPesanan,
+                        TotalHarga = p.TotalHarga,
+                        WaktuSelesai = p.WaktuSelesai,
+                        DibayarKah = p.DibayarKah,
+                        Meja = p.Meja == null ? null : new Meja
+                        {
+                            MejaId = p.Meja.MejaId,
+                            NomorMeja = p.Meja.NomorMeja,
+                            Kapasitas = p.Meja.Kapasitas,
+                            StatusMeja = p.Meja.StatusMeja,
+                            AktifKah = p.Meja.AktifKah
+                        },
+                        DetailPesanans = p.DetailPesanans.Select(dp => new DetailPesanan
+                        {
+                            DetailPesananId = dp.DetailPesananId,
+                            PesananId = dp.PesananId,
+                            MenuId = dp.MenuId,
+                            Jumlah = dp.Jumlah,
+                            HargaSatuan = dp.HargaSatuan,
+                            Catatan = dp.Catatan,
+                            Menu = dp.Menu == null ? null : new Menu
+                            {
+                                MenuId = dp.Menu.MenuId,
+                                NamaMenu = dp.Menu.NamaMenu,
+                                Kategori = dp.Menu.Kategori,
+                                Harga = dp.Menu.Harga,
+                                TersediaKah = dp.Menu.TersediaKah,
+                                StokTersedia = dp.Menu.StokTersedia,
+                                Deskripsi = dp.Menu.Deskripsi,
+                                GambarMenu = dp.Menu.GambarMenu,
+                                WaktuPembuatan = dp.Menu.WaktuPembuatan,
+                                TanggalDitambahkan = dp.Menu.TanggalDitambahkan
+                            }
+                            // JANGAN isi dp.Pesanan di sini!
+                        }).ToList()
+                    })
+                    .ToListAsync();
+                return result;
+            }
+            finally
+            {
+                _dbSemaphore.Release();
+            }
         }
 
         /// <summary>

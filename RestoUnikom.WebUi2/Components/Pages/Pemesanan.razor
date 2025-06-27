@@ -9,15 +9,13 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Web
 @using System.Security.Claims
+@using Microsoft.AspNetCore.SignalR.Client
 
 <PageTitle>Pemesanan Menu</PageTitle>
 
 <AuthorizeView Roles="Pelayan,Admin">
     <Authorized>
         <MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
-            @* <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">
-                Pemesanan - Pelayan: @namaPelayan
-            </MudText> *@
             <MudGrid>
                 <MudItem xs="12" md="9">
                     <MudPaper Class="pa-4 mb-4" Elevation="2">
@@ -326,7 +324,7 @@
     private RestoUnikom.Data.Models.Meja? mejaTerpilih;
     private int pegawaiId;
     private string? namaPelayan;
-    // private bool hasCheckedAuth = false; // Tambahkan flag untuk mencegah cek berulang
+    private HubConnection? hubConnection;
 
     protected override async Task OnInitializedAsync()
     {
@@ -358,6 +356,8 @@
                 Navigation.NavigateTo("/login");
                 return;
             }
+
+            await InitSignalRAsync();
 
             // Ambil data meja kosong
             mejasKosong = await Repo.GetMejasKosongAsync();
@@ -392,52 +392,21 @@
         }
     }
 
-    // protected override async Task OnAfterRenderAsync(bool firstRender)
-    // {
-    //     if (firstRender && !hasCheckedAuth)
-    //     {
-    //         hasCheckedAuth = true; // Cegah cek berulang
-    //         try
-    //         {
-    //             var authState = await AuthenticationState.GetAuthenticationStateAsync();
-    //             var user = authState.User;
-    //             Console.WriteLine($"OnAfterRenderAsync: IsAuthenticated = {user.Identity?.IsAuthenticated}, User = {user.Identity?.Name ?? "None"}, Roles = {string.Join(", ", user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value))}");
+    private async Task InitSignalRAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/mejahub"))
+            .WithAutomaticReconnect()
+            .Build();
 
-    //             if (user.Identity?.IsAuthenticated ?? false)
-    //             {
-    //                 var namaPengguna = user.Identity.Name;
-    //                 var pegawai = await Repo.GetPegawaiByNamaPengguna(namaPengguna);
-    //                 if (pegawai != null)
-    //                 {
-    //                     pegawaiId = pegawai.PegawaiId;
-    //                     namaPelayan = pegawai.NamaPegawai;
-    //                     Snackbar.Add($"Peran dari database: {pegawai.PeranPegawai}", Severity.Info);
-    //                     var roles = user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToList();
-    //                     Snackbar.Add($"Peran dari Claims: {string.Join(", ", roles)}", Severity.Info);
-    //                 }
-    //                 else
-    //                 {
-    //                     Snackbar.Add("Pegawai tidak ditemukan!", Severity.Error);
-    //                     Navigation.NavigateTo("/login");
-    //                 }
-    //             }
-    //             else
-    //             {
-    //                 Snackbar.Add("Anda belum login!", Severity.Error);
-    //                 Navigation.NavigateTo("/login");
-    //             }
-    //         }
-    //         catch (Exception ex)
-    //         {
-    //             Snackbar.Add($"Error memuat autentikasi: {ex.Message}", Severity.Error);
-    //             Console.WriteLine($"Error di OnAfterRenderAsync: {ex.Message}\n{ex.StackTrace}");
-    //         }
-    //         finally
-    //         {
-    //             StateHasChanged();
-    //         }
-    //     }
-    // }
+        hubConnection.On<int>("StatusMejaChanged", async (mejaId) =>
+        {
+            mejasKosong = await Repo.GetMejasKosongAsync();
+            await InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+    }
 
     private IEnumerable<Menu> FilteredMenusByKategori(string kategori)
     {
@@ -565,8 +534,13 @@
             Snackbar.Add("Pesanan berhasil dibuat!", Severity.Success);
             keranjang.Clear();
             mejaTerpilih = null;
-            // Refresh daftar meja kosong
             mejasKosong = await Repo.GetMejasKosongAsync();
+
+            // Broadcast ke SignalR agar client lain update meja
+            if (hubConnection is not null && hubConnection.State == HubConnectionState.Connected)
+            {
+                await hubConnection.SendAsync("BroadcastStatusMejaChanged", pesanan.MejaId);
+            }
         }
         catch (Exception ex)
         {
@@ -581,6 +555,14 @@
     private void RedirectToLogin()
     {
         Navigation.NavigateTo("/login");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
     }
 
     private class IsiKeranjang

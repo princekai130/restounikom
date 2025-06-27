@@ -9,5 +9,11 @@ namespace RestoUnikom.WebUi2.Hubs
         {
             await Clients.All.SendAsync("StatusMejaChanged", mejaId);
         }
+
+        // Method baru untuk broadcast update pesanan
+        public async Task BroadcastPesananChanged(int pesananId)
+        {
+            await Clients.All.SendAsync("PesananChanged", pesananId);
+        }
     }
 }

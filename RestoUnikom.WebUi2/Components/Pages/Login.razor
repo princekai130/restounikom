@@ -6,10 +6,17 @@
 <MudContainer MaxWidth="MaxWidth.Small" Class="py-4">
     <MudPaper Elevation="2" Class="pa-6">
         <MudText Typo="Typo.h5" Align="Align.Center" Class="mb-4">Login</MudText>
-        <MudForm @ref="_form" @bind-IsValid="@_isValid">
-            <MudTextField T="string" Label="Nama Pengguna" @bind-Value="_namaPengguna" Variant="Variant.Outlined" Required="true" Class="mb-4" />
-            <MudTextField T="string" Label="Kata Sandi" @bind-Value="_kataSandi" Variant="Variant.Outlined" InputType="InputType.Password" Required="true" Class="mb-4" />
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Disabled="@(!_isValid || _isProcessing)" OnClick="SubmitLogin">
+        <MudForm @ref="_form">
+            <MudTextField T="string" Label="Nama Pengguna" @bind-Value="_namaPengguna"
+                          Variant="Variant.Outlined" Required="true" Class="mb-4"
+                          OnKeyDown="HandleKeyDown" />
+            <MudTextField T="string" Label="Kata Sandi" @bind-Value="_kataSandi"
+                          Variant="Variant.Outlined" InputType="InputType.Password"
+                          Required="false" Class="mb-4"
+                          OnKeyDown="HandleKeyDown" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                       Disabled="@(string.IsNullOrWhiteSpace(_namaPengguna) || _isProcessing)"
+                       OnClick="SubmitLogin">
                 @if (_isProcessing)
                 {
                     <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
@@ -22,13 +29,24 @@
 
 @code {
     private MudForm _form = null!;
-    private bool _isValid = false;
     private bool _isProcessing = false;
     private string _namaPengguna = string.Empty;
     private string _kataSandi = string.Empty;
 
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        Console.WriteLine($"Key pressed: {e.Key}"); // Debug
+        if (e.Key == "Enter")
+        {
+            Console.WriteLine("Enter detected, calling SubmitLogin"); // Debug
+            await SubmitLogin();
+        }
+    }
+
     private async Task SubmitLogin()
     {
+        if (string.IsNullOrWhiteSpace(_namaPengguna)) return;
+
         _isProcessing = true;
         try
         {

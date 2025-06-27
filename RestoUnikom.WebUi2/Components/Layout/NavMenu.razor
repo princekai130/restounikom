@@ -5,6 +5,7 @@
     <AuthorizeView Roles="Pelayan,Admin">
         <Authorized>
             <MudNavLink Href="pemesanan" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AddShoppingCart">Pemesanan</MudNavLink>
+            <MudNavLink Href="monitoring-meja" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.TableRestaurant">Pantau Meja</MudNavLink>
         </Authorized>
     </AuthorizeView>
     <AuthorizeView Roles="Kasir,Pelayan,Koki,Admin">

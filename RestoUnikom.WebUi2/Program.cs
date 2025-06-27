@@ -8,6 +8,7 @@ using RestoUnikom.Data;
 using RestoUnikom.Data.Models;
 using RestoUnikom.WebUi2.Authentication;
 using RestoUnikom.WebUi2.Components;
+using RestoUnikom.WebUi2.Hubs;
 
 namespace RestoUnikom.WebUi2
 {
@@ -55,6 +56,9 @@ namespace RestoUnikom.WebUi2
             builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
             builder.Services.AddScoped<CustomAuthenticationStateProvider>();
 
+            // Tambahkan SignalR
+            builder.Services.AddSignalR();
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline
@@ -72,6 +76,9 @@ namespace RestoUnikom.WebUi2
             app.MapStaticAssets();
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode();
+
+            // Registrasi endpoint SignalR
+            app.MapHub<MejaHub>("/mejahub");
 
             // Pastikan folder Datas dan GambarMenu ada di output directory
             var datasPath = Path.Combine(AppContext.BaseDirectory, "Datas");

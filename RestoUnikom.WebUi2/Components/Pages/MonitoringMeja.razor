@@ -1,0 +1,183 @@
+@page "/monitoring-meja"
+@inject RestoUnikom.Data.RepositoriResto Repo
+@inject MudBlazor.ISnackbar Snackbar
+@using RestoUnikom.Data.Models
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>Pantau & Kontrol Meja</PageTitle>
+
+<AuthorizeView Roles="Pelayan,Admin">
+    <Authorized>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+            <MudText Typo="Typo.h4" Class="mb-4" Color="Color.Primary">
+                <MudIcon Icon="@Icons.Material.Filled.TableRestaurant" Class="mr-2" />
+                Pantau & Kontrol Meja
+            </MudText>
+            @if (isLoading)
+            {
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            }
+            else if (mejaList == null || !mejaList.Any())
+            {
+                <MudAlert Severity="Severity.Info">Tidak ada meja.</MudAlert>
+            }
+            else
+            {
+                <MudTable Items="@mejaList" Hover="true" Dense="true" Bordered="true">
+                    <HeaderContent>
+                        <MudTh>No</MudTh>
+                        <MudTh>Nomor Meja</MudTh>
+                        <MudTh>Kapasitas</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Aksi</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="meja">
+                        <MudTd DataLabel="No">@(mejaList.IndexOf(meja) + 1)</MudTd>
+                        <MudTd DataLabel="Nomor Meja">@meja.NomorMeja</MudTd>
+                        <MudTd DataLabel="Kapasitas">@meja.Kapasitas</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Color="@GetStatusColor(meja.StatusMeja)" Variant="Variant.Filled">@meja.StatusMeja</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Aksi">
+                            @foreach (var action in GetAvailableActions(meja))
+                            {
+                                <MudButton Variant="Variant.Filled" Color="@action.Color" Size="Size.Small" Class="mr-1" OnClick="@(() => ChangeStatus(meja, action.TargetStatus))">@action.Label</MudButton>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudContainer>
+    </Authorized>
+    <NotAuthorized>
+        <MudText Typo="Typo.h5" Align="Align.Center" Color="Color.Error">
+            Anda tidak memiliki akses!
+        </MudText>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private List<Meja>? mejaList;
+    private bool isLoading = true;
+    private HubConnection? hubConnection;
+    private bool _disposed = false;
+    private IDisposable? mejaChangedHandler;
+    private bool shouldReload = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        await LoadMeja();
+        isLoading = false;
+        await InitSignalR();
+    }
+
+    private async Task InitSignalR()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/mejahub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        mejaChangedHandler = hubConnection.On<int>("StatusMejaChanged", (mejaId) =>
+        {
+            Console.WriteLine($"[SignalR] StatusMejaChanged diterima untuk mejaId: {mejaId}");
+            if (_disposed) return Task.CompletedTask;
+            shouldReload = true;
+            return InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.Closed += async (error) =>
+        {
+            Console.WriteLine($"[SignalR] Koneksi closed: {error?.Message}");
+            await Task.Delay(2000);
+            try { await hubConnection.StartAsync(); } catch { }
+        };
+
+        await hubConnection.StartAsync();
+        Console.WriteLine($"[SignalR] Koneksi state: {hubConnection.State}");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (shouldReload && !_disposed)
+        {
+            shouldReload = false;
+            isLoading = true;
+            await LoadMeja();
+            isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadMeja()
+    {
+        if (_disposed) return;
+        mejaList = await Repo.GetMejasAsync();
+    }
+
+    private IEnumerable<(string Label, RestoUnikom.Data.RepositoriResto.StatusMeja TargetStatus, MudBlazor.Color Color)> GetAvailableActions(Meja meja)
+    {
+        if (!Enum.TryParse<RestoUnikom.Data.RepositoriResto.StatusMeja>(meja.StatusMeja, out var status))
+            yield break;
+        switch (status)
+        {
+            case RestoUnikom.Data.RepositoriResto.StatusMeja.Kosong:
+                yield return ("Pesan", RestoUnikom.Data.RepositoriResto.StatusMeja.Dipesan, MudBlazor.Color.Info);
+                break;
+            case RestoUnikom.Data.RepositoriResto.StatusMeja.Dipesan:
+                yield return ("Tempati", RestoUnikom.Data.RepositoriResto.StatusMeja.Ditempati, MudBlazor.Color.Primary);
+                break;
+            case RestoUnikom.Data.RepositoriResto.StatusMeja.Ditempati:
+                yield return ("Siapkan", RestoUnikom.Data.RepositoriResto.StatusMeja.Disiapkan, MudBlazor.Color.Warning);
+                break;
+            case RestoUnikom.Data.RepositoriResto.StatusMeja.Disiapkan:
+                yield return ("Kosongkan", RestoUnikom.Data.RepositoriResto.StatusMeja.Kosong, MudBlazor.Color.Success);
+                break;
+        }
+    }
+
+    private MudBlazor.Color GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Kosong" => MudBlazor.Color.Success,
+            "Dipesan" => MudBlazor.Color.Info,
+            "Ditempati" => MudBlazor.Color.Primary,
+            "Disiapkan" => MudBlazor.Color.Warning,
+            _ => MudBlazor.Color.Default
+        };
+    }
+
+    private async Task ChangeStatus(Meja meja, RestoUnikom.Data.RepositoriResto.StatusMeja targetStatus)
+    {
+        if (_disposed) return;
+        var result = await Repo.SetStatusMejaAsync(meja, targetStatus);
+        if (result != null)
+        {
+            Snackbar.Add($"Status meja {meja.NomorMeja} diubah ke {targetStatus}", MudBlazor.Severity.Success);
+            if (hubConnection != null && hubConnection.State == HubConnectionState.Connected)
+            {
+                await hubConnection.SendAsync("BroadcastStatusMejaChanged", meja.MejaId);
+            }
+            await LoadMeja();
+            await InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            Snackbar.Add($"Gagal mengubah status meja {meja.NomorMeja}", MudBlazor.Severity.Error);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        mejaChangedHandler?.Dispose();
+        if (hubConnection != null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

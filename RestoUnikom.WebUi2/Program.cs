@@ -28,6 +28,8 @@ namespace RestoUnikom.WebUi2
 
             // Registrasi repositori
             builder.Services.AddScoped<RepositoriResto>();
+            builder.Services.AddScoped<RepoResto>();
+            builder.Services.AddScoped<IRepoRestoFactory, RepoRestoFactory>();
 
             // Tambahkan ProtectedSessionStorage
             builder.Services.AddScoped<ProtectedSessionStorage>();
@@ -79,6 +81,7 @@ namespace RestoUnikom.WebUi2
 
             // Registrasi endpoint SignalR
             app.MapHub<MejaHub>("/mejahub");
+            app.MapHub<MenuHub>("/menuhub");
 
             // Pastikan folder Datas dan GambarMenu ada di output directory
             var datasPath = Path.Combine(AppContext.BaseDirectory, "Datas");

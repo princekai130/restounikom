@@ -1,0 +1,100 @@
+@using RestoUnikom.Data.Models
+@using MudBlazor
+@inject NavigationManager Navigation
+
+<MudDialog MaxWidth="MaxWidth.Medium" FullWidth="true">
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-2" Color="Color.Primary">
+            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Class="mr-1" />
+            Keranjang Pesanan
+        </MudText>
+        <MudSelect T="int?" @bind-Value="mejaTerpilihId" Label="Pilih Meja" Variant="Variant.Outlined" Class="mb-2">
+            @foreach (var meja in mejasKosong)
+            {
+                <MudSelectItem Value="@((int?)meja.MejaId)">@meja.NomorMeja | @meja.StatusMeja</MudSelectItem>
+            }
+        </MudSelect>
+        <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Primary" OnClick="RefreshMejaKosongAsync" Title="Refresh Meja" />
+        @if (mejaSelected != null && mejaSelected.StatusMeja == "Ditempati")
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Info" OnClick="@(() => Navigation.NavigateTo($"/pesanan-meja/{mejaSelected.MejaId}"))">
+                Kelola Pesanan Meja Ini
+            </MudButton>
+        }
+        <MudList T="KeranjangDialog.IsiKeranjangPublic">
+            @foreach (var item in keranjang)
+            {
+                <MudListItem>
+                    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                        <div>
+                            <b>@item.Menu.NamaMenu</b> x @item.Jumlah
+                            <MudText Typo="Typo.caption" Class="mud-secondary-text" Style="display:block;">
+                                @if (!string.IsNullOrWhiteSpace(item.Catatan))
+                                {
+                                    <span>Catatan: @item.Catatan</span>
+                                }
+                            </MudText>
+                        </div>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => HapusIsiKeranjang(item)" />
+                    </div>
+                </MudListItem>
+            }
+        </MudList>
+        <MudDivider Class="my-2" />
+        <MudText Typo="Typo.subtitle2">Total: <b>Rp @keranjang.Sum(x => x.Menu.Harga * x.Jumlah).ToString("N0")</b></MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Check" FullWidth="true"
+            Disabled="@(keranjang.Count == 0 || mejaTerpilihId == null)"
+            OnClick="BuatPesanan" Class="mt-2">
+            Buat Pesanan
+        </MudButton>
+        <MudButton Variant="Variant.Text" OnClick="MudDialog.Cancel">Tutup</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    public class IsiKeranjangPublic
+    {
+        public Menu Menu { get; set; } = default!;
+        public int Jumlah { get; set; }
+        public string Catatan { get; set; } = string.Empty;
+    }
+
+    [Parameter] public List<IsiKeranjangPublic> Keranjang { get; set; } = new();
+    [Parameter] public List<Meja> MejasKosong { get; set; } = new();
+    [Parameter] public int? MejaTerpilihId { get; set; }
+    [Parameter] public EventCallback<int?> MejaTerpilihIdChanged { get; set; }
+    [Parameter] public EventCallback<IsiKeranjangPublic> OnHapusIsiKeranjang { get; set; }
+    [Parameter] public EventCallback OnBuatPesanan { get; set; }
+
+    private List<IsiKeranjangPublic> keranjang => Keranjang;
+    private List<Meja> mejasKosong => MejasKosong;
+    private int? mejaTerpilihId
+    {
+        get => MejaTerpilihId;
+        set
+        {
+            MejaTerpilihId = value;
+            MejaTerpilihIdChanged.InvokeAsync(value);
+        }
+    }
+    private Meja? mejaSelected => mejasKosong?.FirstOrDefault(m => m.MejaId == mejaTerpilihId);
+
+    private void HapusIsiKeranjang(IsiKeranjangPublic item)
+    {
+        OnHapusIsiKeranjang.InvokeAsync(item);
+    }
+
+    private async Task RefreshMejaKosongAsync()
+    {
+        // Optional: bisa diisi jika ingin refresh meja dari parent
+    }
+
+    private async Task BuatPesanan()
+    {
+        await OnBuatPesanan.InvokeAsync();
+        MudDialog?.Close();
+    }
+}

@@ -1,0 +1,72 @@
+@using MudBlazor
+@using RestoUnikom.Data.Models
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudAutocomplete T="Menu"
+                         @bind-Value="SelectedMenu"
+                         Label="Pilih Menu"
+                         Required="true"
+                         FullWidth="true"
+                         Class="mb-2"
+                         ToStringFunc="m => m == null ? string.Empty : m.NamaMenu"
+                         SearchFunc="SearchMenu"
+                         CoerceText="true"
+                         ResetValueOnEmptyText="true">
+            <ItemTemplate>
+                @if (context != null)
+                {
+                    <div>@context.NamaMenu (@context.StokTersedia)</div>
+                }
+            </ItemTemplate>
+        </MudAutocomplete>
+        <MudTextField @bind-Value="Jumlah"
+                      Label="Jumlah"
+                      Variant="Variant.Outlined"
+                      InputType="InputType.Number"
+                      Min="1"
+                      Max="@(SelectedMenu?.StokTersedia ?? 1)"
+                      Immediate="true"
+                      Required="true"
+                      Class="mb-2" />
+        <MudTextField @bind-Value="Catatan"
+                      Label="Catatan (opsional)"
+                      Variant="Variant.Outlined"
+                      Lines="2"
+                      Class="mb-2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary"
+                   Disabled="@(SelectedMenu == null || Jumlah < 1 || (SelectedMenu != null && Jumlah > SelectedMenu.StokTersedia))"
+                   OnClick="Submit">Tambah</MudButton>
+        <MudButton Color="Color.Secondary" OnClick="Cancel">Batal</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public List<Menu> Menus { get; set; } = new();
+    private Menu? SelectedMenu { get; set; }
+    private int Jumlah { get; set; } = 1;
+    private string Catatan { get; set; } = string.Empty;
+
+    private Task<IEnumerable<Menu>> SearchMenu(string value, CancellationToken _)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult(Menus.OrderBy(m => m.NamaMenu).AsEnumerable());
+        return Task.FromResult(Menus.Where(m => m.NamaMenu.Contains(value, StringComparison.OrdinalIgnoreCase)).OrderBy(m => m.NamaMenu).AsEnumerable());
+    }
+
+    private void Submit()
+    {
+        if (SelectedMenu == null || Jumlah < 1 || Jumlah > SelectedMenu.StokTersedia)
+        {
+            Snackbar.Add("Jumlah pesanan tidak valid!", Severity.Error);
+            return;
+        }
+        MudDialog.Close(DialogResult.Ok((SelectedMenu.MenuId, Jumlah, Catatan)));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

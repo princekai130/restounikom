@@ -55,10 +55,11 @@ namespace RestoUnikom.Data
         public enum StatusPesanan
         {
             Menunggu,
+            Dibatalkan,
             Disiapkan,
             Selesai,
             Diantarkan,
-            Dibatalkan
+            Dibayar
         }
 
         /// <summary>

@@ -1,0 +1,38 @@
+﻿0. Aktor2 yang terlibat adalah Pelanggan, Pelayan, Koki, Admin, dan Pemilik. Admin dapat melakukan semua yang bisa dilakukan oleh aktor lain.
+
+1. Pelanggan masuk restoran
+2. Bila Pelanggan sudah reservasi Meja, Pelayan akan menunjukan Mejanya
+3. Bila Pelanggan belum reservasi Meja, Pelanggan dapat memilih langsung Mejanya, atau Pelayan yang memilihkan.
+4. Pelayan memberikan daftar Menu kepada Pelanggan
+5. Menu di kelompokan menjadi Makanan, Minuman, dan Camilan
+6. Nama-nama Menu dapat dicari berdasarkan kata kunci
+7. Daftar Menu ditampilkan dalam bentuk deretan Card (Gambar, Nama, Deskripsi dan Stok)
+8. Menu-menu dipilih dan dimasukan ke dalam Keranjang (DetailPesanan) beserta kuantitasnya lalu dibuatkan Pesanan.
+9. Pembuatan Pesanan dapat dilakukan oleh Pelanggan juga oleh Pelayan
+10. Pesanan yang dibuat mencakup Pelayan yang mendampinginya dan Meja yang ditempatinya
+11. StatusMeja yang ditempat berubah dari Kosong menjadi Ditempati
+12. Pesanan tersebut memiliki StatusPesanan Menunggu
+11. DetailPesanan dapat ditambah atau dihapus apabila belum diproses oleh Koki (Disiapkan)
+13. Bila StatusPesanan sudah Disiapkan, Pelanggan berdasarkan Mejanya dapat membuat Pesanan Baru.
+14. Pesanan tidak dapat dibatalkan bila StatusPesanan sudah Disiapkan
+
+15. Pelayan, Koki, dan Kasir dapat melihat daftar Pesanan dari semua Meja
+16. Daftar Pesanan diurutkan berdasarkan TanggalPesanan, beserta StatusPesanan dan flag DibayarKah
+17. Koki mengambil sebuah Pesanan untuk diproses, StatusPesanan berubah dari Menunggu menjadi Disiapkan
+18. Setelah Koki selesai menyiapkan makanan, Koki mengubah StatusPesanan menjadi Selesai
+19. Koki yang mengubah StatusPesanan menjadi Selesai adalah Koki yang mengubahnya dari Menunggu menjadi Disiapkan
+
+20. Pelayan memilih Pesanan yang memiliki StatusPesanan Selesai untuk diantarkan ke Meja Pelanggan
+21. Pelayan mengubah StatusPesanan dari Selesai menjadi Diantarkan
+
+22. Pelanggan melakukan pembayaran di Kasir
+23. Kasir memproses pembayaran berdasarkan Meja yang ditempatinya
+24. Sebuah Meja dapat memiliki lebih dari satu Pesanan
+25. Setelah Pembayaran Berhasil, StatusPesanan berubah menjadi Dibayar
+
+26. Pelayan membersihkan dan merapihkan Meja yang sudah ditinggalkan oleh Pelanggan dan StatusMeja berubah dari Ditempat menjadi Disiapkan.
+27. Setelah selesai membersihkan dan merapihkan Meja, StatusMeja berubah dari Disiapkan menjadi Kosong
+
+28. Koki dapat melihat dan mengatur jumlah Stok Menu saat ini, serta menandai Ketersediannya.
+
+28. Dashboard menampilkan semua kegiatan secara realtime. Berisi informasi jumlah Meja berdasarkan StatusMeja, jumlah Pesanan berdasarkan StatusPesanan, serta kecepatan penyajian Pesanan. Pemilik dapat melihat jumlah Pembayaran yang diterima secara periodik (Harian, Bulanan, Tahunan).

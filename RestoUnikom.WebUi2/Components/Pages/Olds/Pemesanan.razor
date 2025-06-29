@@ -1,0 +1,575 @@
+﻿@page "/pemesanan"
+@inject RestoUnikom.Data.RepositoriResto Repo
+@inject MudBlazor.ISnackbar Snackbar
+@inject MudBlazor.IDialogService DialogService
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationState
+@inject NavigationManager Navigation
+@using MudBlazor
+@using RestoUnikom.Data.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using System.Security.Claims
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Pemesanan Menu</PageTitle>
+
+<AuthorizeView Roles="Pelayan,Admin">
+    <Authorized>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+            <MudGrid>
+                <MudItem xs="12" md="9">
+                    <MudPaper Class="pa-4 mb-4" Elevation="2">
+                        <MudText Typo="Typo.h4" Class="mb-3" Color="Color.Primary">
+                            <MudIcon Icon="@Icons.Material.Filled.Restaurant" Class="mr-2" />
+                            Pemesanan Menu
+                        </MudText>
+                        <MudTextField @bind-Value="teksPencarian"
+                                      Placeholder="Cari menu berdasarkan nama atau deskripsi..."
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      Variant="Variant.Outlined"
+                                      Immediate="true"
+                                      FullWidth="true"
+                                      Class="mb-2" />
+                        @if (!string.IsNullOrWhiteSpace(teksPencarian))
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Info">
+                                Hasil pencarian untuk: "<b>@teksPencarian</b>"
+                            </MudText>
+                        }
+                    </MudPaper>
+
+                    @if (menusByKategori == null)
+                    {
+                        <MudPaper Class="pa-8 text-center" Elevation="1">
+                            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+                            <MudText Typo="Typo.h6" Class="mt-4">Memuat menu...</MudText>
+                        </MudPaper>
+                    }
+                    else if (!menusByKategori.Any())
+                    {
+                        <MudAlert Severity="Severity.Info" Class="ma-4">
+                            <MudText>Tidak ada menu yang tersedia saat ini.</MudText>
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudPaper Elevation="1">
+                            <MudTabs @bind-ActivePanelIndex="indeksTabAktif"
+                                     Elevation="0"
+                                     Rounded="false"
+                                     Border="true"
+                                     HeaderClass="mud-tabs-header-custom"
+                                     PanelClass="pa-4">
+                                @foreach (var kategori in kategoriList)
+                                {
+                                    var filteredMenus = FilteredMenusByKategori(kategori).ToList();
+                                    var menuCount = filteredMenus.Count;
+                                    <MudTabPanel Text="@GetTabTitle(kategori, menuCount)">
+                                        <ChildContent>
+                                            @if (!filteredMenus.Any())
+                                            {
+                                                <MudAlert Severity="Severity.Info" Class="ma-2">
+                                                    @if (string.IsNullOrWhiteSpace(teksPencarian))
+                                                    {
+                                                        <MudText>Tidak ada menu dalam kategori @kategori.</MudText>
+                                                    }
+                                                    else
+                                                    {
+                                                        <MudText>Tidak ada menu yang cocok dengan pencarian "@teksPencarian" dalam kategori @kategori.</MudText>
+                                                    }
+                                                </MudAlert>
+                                            }
+                                            else
+                                            {
+                                                <MudGrid Spacing="4" Justify="Justify.FlexStart">
+                                                    @foreach (var menu in filteredMenus)
+                                                    {
+                                                        <MudItem xs="12" sm="6" md="4" lg="3" xl="3">
+                                                            <MudCard Class="menu-card">
+                                                                <div class="menu-image-container">
+                                                                    @if (!string.IsNullOrEmpty(menu.GambarMenu))
+                                                                    {
+                                                                        <MudCardMedia Image="@menu.GambarMenu"
+                                                                                      Alt="@menu.NamaMenu"
+                                                                                      Class="menu-image" />
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <div class="menu-image-placeholder">
+                                                                            <MudIcon Icon="@Icons.Material.Filled.Restaurant"
+                                                                                     Size="Size.Large"
+                                                                                     Color="Color.Default" />
+                                                                        </div>
+                                                                    }
+                                                                    <div class="stock-badge">
+                                                                        <MudChip T="string"
+                                                                                 Size="Size.Small"
+                                                                                 Color="@(menu.StokTersedia > 0 ? Color.Success : Color.Error)"
+                                                                                 Variant="Variant.Filled">
+                                                                            Stok: @menu.StokTersedia
+                                                                        </MudChip>
+                                                                    </div>
+                                                                </div>
+                                                                <MudCardContent Class="menu-card-content">
+                                                                    <div class="menu-info">
+                                                                        <MudText Typo="Typo.h6" Class="menu-title">@menu.NamaMenu</MudText>
+                                                                        <MudText Typo="Typo.body2" Class="menu-description">
+                                                                            @(string.IsNullOrEmpty(menu.Deskripsi) ? "Tidak ada deskripsi" : menu.Deskripsi)
+                                                                        </MudText>
+                                                                    </div>
+                                                                    <div class="menu-price">
+                                                                        <MudText Typo="Typo.h6" Color="Color.Primary">
+                                                                            <b>Rp @menu.Harga.ToString("N0")</b>
+                                                                        </MudText>
+                                                                    </div>
+                                                                </MudCardContent>
+                                                                <MudCardActions Class="pa-3">
+                                                                    <MudButton Variant="Variant.Filled"
+                                                                               Color="Color.Primary"
+                                                                               FullWidth="true"
+                                                                               Disabled="@(menu.StokTersedia <= 0)"
+                                                                               StartIcon="@Icons.Material.Filled.AddShoppingCart"
+                                                                               OnClick="@(() => BukaDialogPemesanan(menu))">
+                                                                        @(menu.StokTersedia > 0 ? "Pesan" : "Habis")
+                                                                    </MudButton>
+                                                                </MudCardActions>
+                                                            </MudCard>
+                                                        </MudItem>
+                                                    }
+                                                </MudGrid>
+                                            }
+                                        </ChildContent>
+                                    </MudTabPanel>
+                                }
+                            </MudTabs>
+                        </MudPaper>
+                    }
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudPaper Class="pa-4" Elevation="2">
+                        <MudText Typo="Typo.h6" Class="mb-2" Color="Color.Primary">
+                            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Class="mr-1" />
+                            Keranjang Pesanan
+                        </MudText>
+                        @if (isLoading)
+                        {
+                            <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Medium" Class="mb-2" />
+                        }
+                        else if (namaPelayan == null)
+                        {
+                            <MudAlert Severity="Severity.Warning" Class="mb-2">
+                                <MudText>Pelayan belum login. Silakan login terlebih dahulu.</MudText>
+                            </MudAlert>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Class="mb-2">Pelayan: <b>@namaPelayan</b></MudText>
+                            <MudSelect T="RestoUnikom.Data.Models.Meja" @bind-Value="mejaTerpilih" Label="Pilih Meja" Variant="Variant.Outlined" Disabled="@sedangDipesanKah" Class="mb-2">
+                                @foreach (var meja in mejasKosong)
+                                {
+                                    <MudSelectItem Value="@meja">@meja.NomorMeja</MudSelectItem>
+                                }
+                            </MudSelect>
+                            @if (!keranjang.Any())
+                            {
+                                <MudText Typo="Typo.body2" Class="mud-secondary-text">Belum ada menu yang dipilih.</MudText>
+                            }
+                            else
+                            {
+                                <MudList T="IsiKeranjang" Dense="true">
+                                    @foreach (var item in keranjang)
+                                    {
+                                        <MudListItem>
+                                            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                                                <div>
+                                                    <b>@item.Menu.NamaMenu</b> x @item.Jumlah
+                                                    <MudText Typo="Typo.caption" Class="mud-secondary-text" Style="display:block;">
+                                                        @if (!string.IsNullOrWhiteSpace(item.Catatan))
+                                                        {
+                                                            <span>Catatan: @item.Catatan</span>
+                                                        }
+                                                    </MudText>
+                                                </div>
+                                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                               Color="Color.Error"
+                                                               Size="Size.Small"
+                                                               OnClick="@(() => HapusIsiKeranjang(item))" />
+                                            </div>
+                                        </MudListItem>
+                                    }
+                                </MudList>
+                                <MudDivider Class="my-2" />
+                                <MudText Typo="Typo.subtitle2">Total: <b>Rp @keranjang.Sum(x => x.Menu.Harga * x.Jumlah).ToString("N0")</b></MudText>
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Success"
+                                           StartIcon="@Icons.Material.Filled.Check"
+                                           FullWidth="true"
+                                           Disabled="@(sedangDipesanKah || mejaTerpilih == null || pegawaiId == 0)"
+                                           OnClick="SimpanPesanan"
+                                           Class="mt-2">
+                                    Buat Pesanan
+                                </MudButton>
+                            }
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudContainer>
+    </Authorized>
+    <NotAuthorized>
+        <MudText Typo="Typo.h5" Align="Align.Center" Color="Color.Error">
+            Anda tidak memiliki akses!
+        </MudText>
+    </NotAuthorized>
+</AuthorizeView>
+
+<style>
+    .mud-tabs-header-custom {
+        background-color: var(--mud-palette-surface);
+        border-bottom: 1px solid var(--mud-palette-divider);
+    }
+
+    .menu-card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        transition: all 0.3s ease;
+    }
+
+        .menu-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+    .menu-image-container {
+        position: relative;
+        width: 100%;
+        height: 200px;
+        overflow: hidden;
+    }
+
+    .menu-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .menu-image-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--mud-palette-grey-lighten4);
+        color: var(--mud-palette-grey-darken1);
+    }
+
+    .stock-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+    }
+
+    .menu-card-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 140px;
+    }
+
+    .menu-info {
+        flex: 1;
+    }
+
+    .menu-title {
+        margin-bottom: 8px;
+        line-height: 1.3;
+        height: 2.6em;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .menu-description {
+        color: var(--mud-palette-text-secondary);
+        line-height: 1.4;
+        height: 2.8em;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        margin-bottom: 12px;
+    }
+
+    .menu-price {
+        margin-top: auto;
+        padding-top: 8px;
+        border-top: 1px solid var(--mud-palette-divider);
+    }
+</style>
+
+@code {
+    private Dictionary<string, List<Menu>>? menusByKategori;
+    private List<string> kategoriList = new();
+    private int indeksTabAktif = 0;
+    private string teksPencarian = string.Empty;
+
+    private List<IsiKeranjang> keranjang = new();
+    private bool sedangDipesanKah = false;
+    private bool isLoading = true;
+    private List<RestoUnikom.Data.Models.Meja> mejasKosong = new();
+    private RestoUnikom.Data.Models.Meja? mejaTerpilih;
+    private int pegawaiId;
+    private string? namaPelayan;
+    private HubConnection? hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            // Pengecekan autentikasi
+            var authState = await AuthenticationState.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity?.IsAuthenticated ?? false)
+            {
+                var namaPengguna = user.Identity.Name;
+                var pegawai = await Repo.GetPegawaiByNamaPengguna(namaPengguna);
+                if (pegawai != null)
+                {
+                    pegawaiId = pegawai.PegawaiId;
+                    namaPelayan = pegawai.NamaPegawai;
+                }
+                else
+                {
+                    Snackbar.Add("Pegawai tidak ditemukan!", Severity.Error);
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+            }
+            else
+            {
+                Snackbar.Add("Anda belum login!", Severity.Error);
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            await InitSignalRAsync();
+
+            // Ambil data meja kosong
+            mejasKosong = await Repo.GetMejasKosongAsync();
+            if (!mejasKosong.Any())
+            {
+                Snackbar.Add("Tidak ada meja kosong tersedia!", Severity.Warning);
+            }
+
+            // Ambil daftar menu
+            var menus = await Repo.GetMenusStokTersediaAsync();
+            if (menus != null && menus.Any())
+            {
+                menusByKategori = menus
+                    .GroupBy(m => string.IsNullOrEmpty(m.Kategori) ? "Lainnya" : m.Kategori)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+                kategoriList = menusByKategori.Keys.OrderBy(k => k).ToList();
+            }
+            else
+            {
+                menusByKategori = new Dictionary<string, List<Menu>>();
+                kategoriList = new List<string>();
+                Snackbar.Add("Tidak ada menu tersedia!", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error memuat data: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task InitSignalRAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/mejahub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.On<int>("StatusMejaChanged", async (mejaId) =>
+        {
+            mejasKosong = await Repo.GetMejasKosongAsync();
+            await InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    private IEnumerable<Menu> FilteredMenusByKategori(string kategori)
+    {
+        if (menusByKategori == null || !menusByKategori.ContainsKey(kategori))
+            return Enumerable.Empty<Menu>();
+
+        var menus = menusByKategori[kategori];
+        if (string.IsNullOrWhiteSpace(teksPencarian))
+            return menus;
+
+        return menus.Where(m =>
+            (!string.IsNullOrEmpty(m.NamaMenu) && m.NamaMenu.Contains(teksPencarian, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(m.Deskripsi) && m.Deskripsi.Contains(teksPencarian, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private string GetTabTitle(string kategori, int count) => $"{kategori} ({count})";
+
+    private async Task BukaDialogPemesanan(Menu menu)
+    {
+        if (menu == null)
+        {
+            Snackbar.Add("Menu tidak valid!", Severity.Error);
+            return;
+        }
+
+        var parameters = new DialogParameters { ["Menu"] = menu };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, CloseOnEscapeKey = true, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<PemesananDialog>("Pesan Menu", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var (jumlah, catatan) = ((int, string))result.Data;
+            TambahkanKeKeranjang(menu, jumlah, catatan);
+        }
+    }
+
+    private void TambahkanKeKeranjang(Menu menu, int jumlah, string catatan)
+    {
+        var isiKeranjang = keranjang.FirstOrDefault(x => x.Menu.MenuId == menu.MenuId && x.Catatan == catatan);
+        if (isiKeranjang != null)
+        {
+            if (isiKeranjang.Jumlah + jumlah <= menu.StokTersedia)
+                isiKeranjang.Jumlah += jumlah;
+            else
+                isiKeranjang.Jumlah = menu.StokTersedia;
+        }
+        else
+        {
+            keranjang.Add(new IsiKeranjang
+            {
+                Menu = menu,
+                Jumlah = jumlah,
+                Catatan = catatan
+            });
+        }
+        Snackbar.Add($"{menu.NamaMenu} ditambahkan ke keranjang!", Severity.Success);
+    }
+
+    private void HapusIsiKeranjang(IsiKeranjang item)
+    {
+        keranjang.Remove(item);
+        Snackbar.Add("Item dihapus dari keranjang!", Severity.Success);
+    }
+
+    private async Task SimpanPesanan()
+    {
+        if (!keranjang.Any())
+        {
+            Snackbar.Add("Keranjang kosong!", Severity.Error);
+            return;
+        }
+
+        if (mejaTerpilih == null)
+        {
+            Snackbar.Add("Pilih meja terlebih dahulu!", Severity.Error);
+            return;
+        }
+
+        if (pegawaiId == 0)
+        {
+            Snackbar.Add("Pegawai tidak valid!", Severity.Error);
+            return;
+        }
+
+        sedangDipesanKah = true;
+        try
+        {
+            // Ubah status meja menjadi Ditempati
+            await Repo.SetStatusMejaAsync(mejaTerpilih, RestoUnikom.Data.RepositoriResto.StatusMeja.Ditempati);
+
+            var pesanan = new Pesanan
+            {
+                MejaId = mejaTerpilih.MejaId,
+                PegawaiId = pegawaiId,
+                TanggalPesanan = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                StatusPesanan = RestoUnikom.Data.RepositoriResto.StatusPesanan.Menunggu.ToString(),
+                DibayarKah = 0
+            };
+
+            var pesananList = await Repo.SetPesananBaruAsync(pesanan);
+            var pesananBaru = pesananList.LastOrDefault();
+            if (pesananBaru == null)
+            {
+                Snackbar.Add("Gagal membuat pesanan.", Severity.Error);
+                return;
+            }
+
+            foreach (var item in keranjang)
+            {
+                var detail = new DetailPesanan
+                {
+                    PesananId = pesananBaru.PesananId,
+                    MenuId = item.Menu.MenuId,
+                    Jumlah = item.Jumlah,
+                    HargaSatuan = item.Menu.Harga,
+                    Catatan = item.Catatan ?? ""
+                };
+                await Repo.SetDetailPesananBaruAsync(detail);
+
+                // Kurangi stok menu
+                await Repo.SetMenuStokTersediaAsync(item.Menu.MenuId, item.Menu.StokTersedia - item.Jumlah);
+            }
+
+            Snackbar.Add("Pesanan berhasil dibuat!", Severity.Success);
+            keranjang.Clear();
+            mejaTerpilih = null;
+            mejasKosong = await Repo.GetMejasKosongAsync();
+
+            // Broadcast ke SignalR agar client lain update meja
+            if (hubConnection is not null && hubConnection.State == HubConnectionState.Connected)
+            {
+                await hubConnection.SendAsync("BroadcastStatusMejaChanged", pesanan.MejaId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Gagal membuat pesanan: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            sedangDipesanKah = false;
+        }
+    }
+
+    private void RedirectToLogin()
+    {
+        Navigation.NavigateTo("/login");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+
+    private class IsiKeranjang
+    {
+        public Menu Menu { get; set; } = default!;
+        public int Jumlah { get; set; }
+        public string Catatan { get; set; } = string.Empty;
+    }
+
+}

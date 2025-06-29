@@ -1,0 +1,195 @@
+﻿@page "/penyiapan"
+@inject RestoUnikom.Data.RepositoriResto Repo
+@inject MudBlazor.ISnackbar Snackbar
+@inject MudBlazor.IDialogService DialogService
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationState
+@inject NavigationManager NavigationManager
+@using Microsoft.AspNetCore.Components.Authorization
+@using MudBlazor
+@using RestoUnikom.Data.Models
+@using System.Security.Claims
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Penyiapan Pesanan</PageTitle>
+
+<AuthorizeView Roles="Kasir,Pelayan,Koki,Admin">
+    <Authorized>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+            <MudText Typo="Typo.h4" Class="mb-4" Color="Color.Primary">
+                <MudIcon Icon="@Icons.Material.Filled.ListAlt" Class="mr-2" />
+                Daftar Pesanan
+            </MudText>
+            <MudDatePicker Date="@tanggalPilihan" DateChanged="OnTanggalChanged" Label="Pilih Tanggal" Class="mb-4" />
+            @if (isLoading)
+            {
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+            }
+            else if (pesananList == null || !pesananList.Any())
+            {
+                <MudAlert Severity="Severity.Info">Tidak ada pesanan.</MudAlert>
+            }
+            else
+            {
+                <MudTable Items="@pesananList" Hover="true" Dense="true" Bordered="true" Striped="false">
+                    <HeaderContent>
+                        <MudTh>No</MudTh>
+                        <MudTh>Meja</MudTh>
+                        <MudTh>Jam Pesan</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Detail</MudTh>
+                        <MudTh>Aksi</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="row">
+                        <MudTd DataLabel="No">@(pesananList.IndexOf(row) + 1)</MudTd>
+                        <MudTd DataLabel="Meja">@row.Meja?.NomorMeja</MudTd>
+                        <MudTd DataLabel="Jam Pesan">@row.TanggalPesanan.Substring(11)</MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Color="@GetStatusColor(row.StatusPesanan)" Variant="Variant.Filled">@row.StatusPesanan</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Detail">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small" OnClick="@(() => ShowDetailDialog(row.PesananId))">Lihat</MudButton>
+                        </MudTd>
+                        <MudTd DataLabel="Aksi">
+                            @foreach (var action in GetAvailableActions(row))
+                            {
+                                <MudButton Variant="Variant.Filled" Color="@action.Color" Size="Size.Small" Class="mr-1" OnClick="@(() => ChangeStatus(row, action.TargetStatus))">@action.Label</MudButton>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudContainer>
+    </Authorized>
+    <NotAuthorized>
+        <MudText Typo="Typo.h5" Align="Align.Center" Color="Color.Error">
+            Anda tidak memiliki akses!
+        </MudText>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private List<Pesanan>? pesananList;
+    private bool isLoading = true;
+    private string? userRole;
+    private DateTime tanggalPilihan = DateTime.Today;
+    private HubConnection? hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        var authState = await AuthenticationState.GetAuthenticationStateAsync();
+        var user = authState.User;
+        userRole = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+        await LoadPesanan();
+        isLoading = false;
+
+        // Inisialisasi koneksi SignalR
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/mejahub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.On<int>("PesananChanged", async (pesananId) =>
+        {
+            await LoadPesanan();
+            await InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+
+    private async Task LoadPesanan()
+    {
+        var all = await Repo.GetPesanansByTanggalAsync(tanggalPilihan);
+        pesananList = all.OrderBy(p => DateTime.TryParse(p.TanggalPesanan, out var t) ? t : DateTime.MaxValue).ToList();
+    }
+
+    private async Task ShowDetailDialog(int pesananId)
+    {
+        var parameters = new DialogParameters { ["PesananId"] = pesananId };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, CloseButton = true, FullWidth = true };
+        await DialogService.ShowAsync<PenyiapanDetailDialog>("Detail Pesanan", parameters, options);
+    }
+
+    private async Task ChangeStatus(Pesanan pesanan, string targetStatus)
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Konfirmasi",
+            $"Ubah status pesanan menjadi {targetStatus}?",
+            yesText: "Ya", noText: "Batal");
+        if (confirm == true)
+        {
+            var enumStatus = Enum.TryParse<RestoUnikom.Data.RepositoriResto.StatusPesanan>(targetStatus, out var s) ? s : RestoUnikom.Data.RepositoriResto.StatusPesanan.Menunggu;
+            var result = await Repo.SetPesananStatusAsync(pesanan.PesananId, enumStatus);
+            if (result != null)
+            {
+                Snackbar.Add($"Status pesanan diubah ke {targetStatus}", Severity.Success);
+                // Broadcast ke SignalR agar client lain update daftar pesanan
+                if (hubConnection is not null && hubConnection.State == HubConnectionState.Connected)
+                {
+                    await hubConnection.SendAsync("BroadcastPesananChanged", pesanan.PesananId);
+                }
+                // Tidak perlu panggil LoadPesanan di sini, akan otomatis via SignalR
+            }
+            else
+            {
+                Snackbar.Add("Gagal mengubah status pesanan!", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OnTanggalChanged(DateTime? value)
+    {
+        if (value.HasValue)
+        {
+            tanggalPilihan = value.Value;
+            isLoading = true;
+            await LoadPesanan();
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private IEnumerable<(string Label, string TargetStatus, Color Color)> GetAvailableActions(Pesanan pesanan)
+    {
+        var status = pesanan.StatusPesanan;
+        if (userRole == "Koki")
+        {
+            if (status == "Menunggu")
+                yield return ("Disiapkan", "Disiapkan", Color.Info);
+            else if (status == "Disiapkan")
+                yield return ("Selesai", "Selesai", Color.Success);
+        }
+        else if (userRole == "Pelayan")
+        {
+            if (status == "Selesai")
+                yield return ("Diantarkan", "Diantarkan", Color.Primary);
+        }
+        else if (userRole == "Admin")
+        {
+            if (status == "Diantarkan")
+                yield return ("Batalkan", "Dibatalkan", Color.Error);
+        }
+    }
+
+    private Color GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Menunggu" => Color.Warning,
+            "Disiapkan" => Color.Info,
+            "Selesai" => Color.Success,
+            "Diantarkan" => Color.Primary,
+            "Dibatalkan" => Color.Error,
+            _ => Color.Default
+        };
+    }
+}

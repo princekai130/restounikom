@@ -1,5 +1,6 @@
 ﻿@using RestoUnikom.WebUi2.Authentication
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
 @inject CustomAuthenticationStateProvider AuthProvider
 @inherits LayoutComponentBase
 
@@ -36,6 +37,7 @@
 
 @code {
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
     private bool _drawerOpen = true;
     private bool _isDarkMode = true;
     private MudTheme? _theme = null;
@@ -85,14 +87,29 @@
         };
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var darkMode = await JS.InvokeAsync<string>("localStorage.getItem", "isDarkMode");
+            if (!string.IsNullOrEmpty(darkMode))
+            {
+                _isDarkMode = darkMode == "true";
+                StateHasChanged();
+            }
+        }
+    }
+
     private void DrawerToggle()
     {
         _drawerOpen = !_drawerOpen;
     }
 
-    private void DarkModeToggle()
+    private async void DarkModeToggle()
     {
         _isDarkMode = !_isDarkMode;
+        await JS.InvokeVoidAsync("localStorage.setItem", "isDarkMode", _isDarkMode.ToString().ToLower());
+        StateHasChanged();
     }
 
     private async Task Logout()

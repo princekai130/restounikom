@@ -46,13 +46,6 @@
                                                     <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" Class="mr-1" />
                                                     @menu.StokTersedia
                                                 </MudChip>
-                                                <AuthorizeView Roles="Koki,Admin">
-                                                    <Authorized>
-                                                        <MudButton Variant="Variant.Text" Color="Color.Info" OnClick="() => EditStokMenu(menu)" Class="edit-stock-btn">
-                                                            Edit Stok
-                                                        </MudButton>
-                                                    </Authorized>
-                                                </AuthorizeView>
                                                 <MudCardMedia Image="@menu.GambarMenu" Height="180" Class="menu-image" />
                                                 <AuthorizeView Roles="Pelayan,Admin">
                                                     <Authorized>
@@ -187,47 +180,6 @@
         else
         {
             Snackbar.Add("Gagal membuat pesanan!", MudBlazor.Severity.Error);
-        }
-    }
-
-    private async Task EditStokMenu(Menu menu)
-    {
-        var parameters = new MudBlazor.DialogParameters { ["Value"] = menu.StokTersedia };
-        var options = new MudBlazor.DialogOptions { MaxWidth = MudBlazor.MaxWidth.Small, CloseOnEscapeKey = true, FullWidth = true };
-        var dialog = DialogService.Show<StokInputDialog>("Edit Stok Menu", parameters, options);
-        var result = await dialog.Result;
-        if (!result.Canceled && result.Data is int stokBaru)
-        {
-            try
-            {
-                using var scope = ScopeFactory.CreateScope();
-                var repo = scope.ServiceProvider.GetRequiredService<RestoUnikom.Data.RepoResto>();
-                var updated = await repo.UpdateMenuStokAsync(menu.MenuId, stokBaru);
-                if (updated != null)
-                {
-                    Snackbar.Add("Stok menu berhasil diubah!", MudBlazor.Severity.Success);
-                    var menuInList = menus.FirstOrDefault(m => m.MenuId == menu.MenuId);
-                    if (menuInList != null)
-                        menuInList.StokTersedia = stokBaru;
-                    StateHasChanged();
-                    if (hubConnection != null && hubConnection.State == HubConnectionState.Connected)
-                    {
-                        await hubConnection.SendAsync("BroadcastMenuStokChanged");
-                    }
-                }
-                else
-                {
-                    Snackbar.Add("Gagal mengubah stok menu!", MudBlazor.Severity.Error);
-                }
-            }
-            catch (ObjectDisposedException)
-            {
-                Snackbar.Add("Terjadi error internal (koneksi database sudah ditutup). Silakan refresh halaman.", MudBlazor.Severity.Error);
-            }
-            catch (Exception ex)
-            {
-                Snackbar.Add($"Error: {ex.Message}", MudBlazor.Severity.Error);
-            }
         }
     }
 

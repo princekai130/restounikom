@@ -38,22 +38,22 @@
                         <RowTemplate Context="bahanContext">
                             <MudTd>@bahanContext.NamaBahan</MudTd>
                             <MudTd>
-                                <MudNumericField T="double" Value="@GetJumlahBahan(bahanContext.BahanId)" ValueChanged="@(v => SetJumlahBahan(bahanContext.BahanId, v))" Min="0" Variant="Variant.Outlined" Style="width:80px;" />
+                                <MudNumericField T="double" Value="@GetJumlahBahan(bahanContext.BahanId)" ValueChanged="@(v => SetJumlahBahan(bahanContext.BahanId, v))" Min="0" Variant="Variant.Outlined" Style="width:80px;" Disabled="@_isEdit" />
                             </MudTd>
                             <MudTd>@bahanContext.Satuan</MudTd>
                             <MudTd>
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => RemoveBahan(bahanContext.BahanId)" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => RemoveBahan(bahanContext.BahanId)" Disabled="@_isEdit" />
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
-                    <MudSelect T="StokBahan" Label="Tambah Bahan" @bind-Value="selectedBahan" Variant="Variant.Outlined" Dense="true" Class="mb-2" Style="min-width:200px;">
+                    <MudSelect T="StokBahan" Label="Tambah Bahan" @bind-Value="selectedBahan" Variant="Variant.Outlined" Dense="true" Class="mb-2" Style="min-width:200px;" Disabled="@_isEdit">
                         <MudSelectItem T="StokBahan" Value="null">-- Pilih Bahan --</MudSelectItem>
                         @foreach (var bahan in stokBahanList.Where(b => !menuBahanDict.ContainsKey(b.BahanId)))
                         {
                             <MudSelectItem T="StokBahan" Value="bahan">@bahan.NamaBahan (@bahan.Satuan)</MudSelectItem>
                         }
                     </MudSelect>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Disabled="selectedBahan == null" OnClick="AddBahan">Tambah Bahan</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Disabled="selectedBahan == null || _isEdit" OnClick="AddBahan">Tambah Bahan</MudButton>
                     <MudDivider Class="my-4" />
                     <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="!_isValid || _isSaving" OnClick="OnSubmit" Class="mr-2">
                         @if (_isSaving) { <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" /> }

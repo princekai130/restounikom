@@ -1,0 +1,59 @@
+@using MudBlazor
+@using RestoUnikom.Data.Models
+@using RestoUnikom.Data
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-2">Pembayaran Pesanan</MudText>
+        <MudPaper Class="pa-2 mb-2" Elevation="1">
+            <MudText Typo="Typo.subtitle2">Meja: <b>@Pesanan?.Meja?.NomorMeja</b></MudText>
+            <MudText Typo="Typo.body2">Total: <b>Rp @TotalHarga.ToString("N0")</b></MudText>
+            <MudList T="DetailPesanan" Dense="true">
+                @foreach (var d in Pesanan?.DetailPesanans ?? new List<DetailPesanan>())
+                {
+                    <MudListItem T="DetailPesanan">
+                        <MudText Typo="Typo.body2">@d.Menu?.NamaMenu (@d.Jumlah) <span style="color:gray;font-size:0.9em">@d.Catatan</span></MudText>
+                    </MudListItem>
+                }
+            </MudList>
+        </MudPaper>
+        <MudTextField @bind-Value="JumlahBayar" Label="Jumlah Bayar (Rp)" Variant="Variant.Outlined" InputType="InputType.Number" Min="@TotalHarga" Immediate="true" Required="true" Class="mb-2" />
+        <MudSelect T="RepoResto.MetodeBayar" @bind-Value="MetodeBayar" Label="Metode Bayar" Required="true" Class="mb-2">
+            @foreach (var metode in Enum.GetValues(typeof(RepoResto.MetodeBayar)).Cast<RepoResto.MetodeBayar>())
+            {
+                <MudSelectItem T="RepoResto.MetodeBayar" Value="@metode">@metode.ToString()</MudSelectItem>
+            }
+        </MudSelect>
+        @if (!string.IsNullOrEmpty(NotaNomor))
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-2">Pembayaran berhasil! Nota: <b>@NotaNomor</b></MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary" Disabled="@(JumlahBayar < TotalHarga)" OnClick="Submit">Bayar</MudButton>
+        <MudButton Color="Color.Secondary" OnClick="Cancel">Batal</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Pesanan? Pesanan { get; set; }
+    [Parameter] public int PegawaiId { get; set; }
+    private double TotalHarga => Pesanan?.DetailPesanans?.Sum(d => d.HargaSatuan * d.Jumlah) ?? 0;
+    private double JumlahBayar { get; set; }
+    private RepoResto.MetodeBayar MetodeBayar { get; set; } = RepoResto.MetodeBayar.Tunai;
+    private string NotaNomor { get; set; } = string.Empty;
+
+    private async Task Submit()
+    {
+        if (Pesanan == null || PegawaiId == 0 || JumlahBayar < TotalHarga)
+        {
+            Snackbar.Add("Data pembayaran tidak valid!", Severity.Error);
+            return;
+        }
+        MudDialog.Close(DialogResult.Ok((Pesanan.PesananId, JumlahBayar, MetodeBayar)));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

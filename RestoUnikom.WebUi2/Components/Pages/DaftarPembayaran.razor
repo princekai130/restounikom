@@ -1,0 +1,176 @@
+@page "/daftar-pembayaran"
+@inject NavigationManager Navigation
+@inject MudBlazor.ISnackbar Snackbar
+@inject RestoUnikom.Data.RepoResto RepoResto
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
+@using RestoUnikom.Data.Models
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>Rekap Pembayaran Harian</PageTitle>
+
+@if (!isAuthChecked)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+}
+else if (isDenied)
+{
+    <MudAlert Severity="Severity.Error">Akses ditolak.</MudAlert>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-md-4 mt-2 py-4">
+        <MudText Typo="Typo.h4" Class="mb-2" Color="Color.Primary">
+            <MudIcon Icon="@Icons.Material.Filled.Payments" Class="mr-2" />
+            Rekap Pembayaran Harian
+        </MudText>
+        <MudGrid Class="mb-2">
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker @bind-Date="tanggalAwal" Label="Mulai Tanggal" DateFormat="dd/MM/yyyy" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker @bind-Date="tanggalAkhir" Label="Sampai Tanggal" DateFormat="dd/MM/yyyy" />
+            </MudItem>
+            @if (userRole == "Admin" || userRole == "Pemilik")
+            {
+                <MudItem xs="12" sm="6" md="3">
+                    <MudTextField @bind-Value="filterNamaKasir" Label="Filter Nama Kasir" Immediate="true" />
+                </MudItem>
+            }
+        </MudGrid>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@LoadRekapPembayaran" Class="mb-2">Terapkan Filter</MudButton>
+        @if (isLoadingRekap)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (filteredPembayaranList == null || filteredPembayaranList.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">Belum ada pembayaran pada rentang tanggal ini.</MudAlert>
+        }
+        else
+        {
+            <MudTable Items="@filteredPembayaranList" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Nota</MudTh>
+                    <MudTh>Pesanan</MudTh>
+                    <MudTh>Jumlah Bayar</MudTh>
+                    <MudTh>Metode</MudTh>
+                    <MudTh>Tanggal</MudTh>
+                    <MudTh>Kasir</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.NotaNomor</MudTd>
+                    <MudTd>@context.PesananId</MudTd>
+                    <MudTd>Rp @context.JumlahBayar.ToString("N0")</MudTd>
+                    <MudTd>@context.MetodeBayar</MudTd>
+                    <MudTd>@context.TanggalBayar</MudTd>
+                    <MudTd>@context.Pegawai?.NamaPegawai</MudTd>
+                </RowTemplate>
+            </MudTable>
+            <MudText Typo="Typo.subtitle1" Class="mt-2">Total: <b>Rp @filteredPembayaranList.Sum(x => x.JumlahBayar).ToString("N0")</b></MudText>
+            @if (userRole == "Admin" || userRole == "Pemilik")
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-1">Jumlah transaksi kasir: <b>@filteredPembayaranList.Select(x => x.Pegawai?.NamaPegawai).Distinct().Count()</b></MudText>
+            }
+        }
+    </MudContainer>
+}
+
+@code {
+    private bool isAuthChecked = false;
+    private bool isDenied = false;
+    private string? userRole;
+    private int pegawaiId = 0;
+    private DateTime? tanggalAwal = DateTime.Today;
+    private DateTime? tanggalAkhir = DateTime.Today;
+    private string? filterNamaKasir;
+    private List<Pembayaran>? rekapPembayaranList;
+    private List<Pembayaran>? filteredPembayaranList;
+    private bool isLoadingRekap = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        userRole = user.Claims.FirstOrDefault(c => c.Type == "role" || c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role")?.Value;
+        if (user.Identity?.IsAuthenticated == true && (userRole == "Kasir" || userRole == "Admin" || userRole == "Pemilik"))
+        {
+            var username = user.Identity.Name;
+            if (!string.IsNullOrEmpty(username))
+            {
+                var pegawai = await RepoResto.GetPegawaiByNamaPengguna(username);
+                if (pegawai != null)
+                {
+                    pegawaiId = pegawai.PegawaiId;
+                    isDenied = false;
+                }
+                else
+                {
+                    isDenied = true;
+                }
+            }
+            else
+            {
+                isDenied = true;
+            }
+        }
+        else
+        {
+            isDenied = true;
+        }
+        isAuthChecked = true;
+        if (!isDenied)
+        {
+            await LoadRekapPembayaran();
+        }
+    }
+
+    private async Task LoadRekapPembayaran()
+    {
+        isLoadingRekap = true;
+        try
+        {
+            if (tanggalAwal.HasValue && tanggalAkhir.HasValue)
+            {
+                if (userRole == "Kasir")
+                {
+                    rekapPembayaranList = await RepoResto.GetPembayaranByPeriodikTanggalByPegawaiAsync(tanggalAwal.Value, tanggalAkhir.Value, pegawaiId);
+                }
+                else if (userRole == "Admin" || userRole == "Pemilik")
+                {
+                    rekapPembayaranList = await RepoResto.GetPembayaranByPeriodikTanggalAsync(tanggalAwal.Value, tanggalAkhir.Value);
+                }
+                else
+                {
+                    rekapPembayaranList = new List<Pembayaran>();
+                }
+
+                if (!string.IsNullOrWhiteSpace(filterNamaKasir))
+                {
+                    filteredPembayaranList = rekapPembayaranList.Where(x => x.Pegawai?.NamaPegawai?.Contains(filterNamaKasir, StringComparison.OrdinalIgnoreCase) == true).ToList();
+                }
+                else
+                {
+                    filteredPembayaranList = rekapPembayaranList;
+                }
+            }
+            else
+            {
+                filteredPembayaranList = rekapPembayaranList = new List<Pembayaran>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Gagal mengambil rekap pembayaran: {ex.Message}", MudBlazor.Severity.Error);
+        }
+        isLoadingRekap = false;
+        StateHasChanged();
+    }
+
+    private bool TryParseTanggal(string tanggal, out DateTime tgl)
+    {
+        tgl = default;
+        if (string.IsNullOrWhiteSpace(tanggal)) return false;
+        return DateTime.TryParseExact(tanggal, "yyyy-MM-dd HH:mm:ss", null, System.Globalization.DateTimeStyles.None, out tgl)
+            || DateTime.TryParse(tanggal, out tgl);
+    }
+}

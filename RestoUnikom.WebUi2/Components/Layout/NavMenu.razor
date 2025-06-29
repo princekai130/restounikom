@@ -13,4 +13,9 @@
             <MudNavLink Href="daftar-pesanan-meja" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ListAlt">Daftar Pesanan</MudNavLink>
         </Authorized>
     </AuthorizeView>
+    <AuthorizeView Roles="Kasir,Admin,Pemilik">
+        <Authorized>
+            <MudNavLink Href="daftar-pembayaran" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Payments">Rekap Pembayaran</MudNavLink>
+        </Authorized>
+    </AuthorizeView>
 </MudNavMenu>

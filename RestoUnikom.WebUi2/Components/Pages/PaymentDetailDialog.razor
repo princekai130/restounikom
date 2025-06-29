@@ -1,0 +1,64 @@
+@using MudBlazor
+@using RestoUnikom.Data.Models
+@using RestoUnikom.Data
+@inject RestoUnikom.Data.RepoResto RepoResto
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-2">Detail Pembayaran</MudText>
+        @if (isLoading)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (pembayaranList == null || pembayaranList.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">Belum ada pembayaran untuk pesanan ini.</MudAlert>
+        }
+        else
+        {
+            <MudTable Items="@pembayaranList" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Nota</MudTh>
+                    <MudTh>Jumlah Bayar</MudTh>
+                    <MudTh>Metode</MudTh>
+                    <MudTh>Tanggal</MudTh>
+                    <MudTh>Kasir</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.NotaNomor</MudTd>
+                    <MudTd>Rp @context.JumlahBayar.ToString("N0")</MudTd>
+                    <MudTd>@context.MetodeBayar</MudTd>
+                    <MudTd>@context.TanggalBayar</MudTd>
+                    <MudTd>@context.Pegawai?.NamaPegawai</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Secondary" OnClick="Close">Tutup</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int PesananId { get; set; }
+    private List<Pembayaran>? pembayaranList;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            pembayaranList = await RepoResto.GetPembayaranByPesananIdAsync(PesananId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Gagal mengambil data pembayaran: {ex.Message}", Severity.Error);
+        }
+        isLoading = false;
+    }
+
+    private void Close() => MudDialog.Close();
+}

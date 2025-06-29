@@ -98,7 +98,11 @@ else
                                     }
                                     @if ((IsKasir || IsAdmin) && context.StatusPesanan == StatusPesananDiantarkan.ToString())
                                     {
-                                        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => UpdateStatus(context.PesananId, StatusPesananDibayar))">Dibayar</MudButton>
+                                        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => BayarPesanan(context))">Dibayar</MudButton>
+                                    }
+                                    @if ((IsKasir || IsAdmin) && context.StatusPesanan == StatusPesananDibayar.ToString())
+                                    {
+                                        <MudButton Color="Color.Info" Variant="Variant.Outlined" OnClick="@(() => ShowPembayaranDialog(context.PesananId))">Lihat Pembayaran</MudButton>
                                     }
                                 </MudTd>
                             </RowTemplate>
@@ -150,6 +154,24 @@ else
     private bool IsAdmin => userRole == "Admin";
     private bool IsPelayan => userRole == "Pelayan";
     private bool IsPemilik => userRole == "Pemilik";
+
+    [Inject] private MudBlazor.IDialogService DialogService { get; set; }
+
+    private DateTime _tanggalRekap = DateTime.Today;
+    private DateTime tanggalRekap
+    {
+        get => _tanggalRekap;
+        set
+        {
+            if (_tanggalRekap != value)
+            {
+                _tanggalRekap = value;
+                // Sudah dipindahkan ke halaman DaftarPembayaran, tidak perlu panggil LoadRekapPembayaran di sini
+            }
+        }
+    }
+    private List<Pembayaran>? rekapPembayaranList;
+    private bool isLoadingRekap = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -292,6 +314,46 @@ else
         {
             Snackbar.Add("Gagal update status pesanan", MudBlazor.Severity.Error);
         }
+    }
+
+    private async Task BayarPesanan(Pesanan pesanan)
+    {
+        var parameters = new MudBlazor.DialogParameters
+        {
+            ["Pesanan"] = pesanan,
+            ["PegawaiId"] = pegawaiId
+        };
+        var options = new MudBlazor.DialogOptions { MaxWidth = MudBlazor.MaxWidth.Small, CloseOnEscapeKey = true, FullWidth = true };
+        var dialog = DialogService.Show<PaymentDialog>("Pembayaran Pesanan", parameters, options);
+        var result = await dialog.Result;
+        if (!result.Canceled && result.Data is ValueTuple<int, double, RepoResto.MetodeBayar> data)
+        {
+            try
+            {
+                var pembayaranList = await RepoResto.CreatePembayaranAsync(new List<int> { data.Item1 }, pegawaiId, data.Item2, data.Item3);
+                if (pembayaranList != null && pembayaranList.Count > 0)
+                {
+                    Snackbar.Add($"Pembayaran berhasil! Nota: {pembayaranList[0].NotaNomor}", MudBlazor.Severity.Success);
+                    semuaPesanan = await RepoResto.GetSemuaPesananAsync();
+                    if (hubConnection != null && hubConnection.State == HubConnectionState.Connected)
+                    {
+                        await hubConnection.SendAsync("BroadcastPesananChanged", data.Item1);
+                    }
+                    StateHasChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Gagal melakukan pembayaran: {ex.Message}", MudBlazor.Severity.Error);
+            }
+        }
+    }
+
+    private async Task ShowPembayaranDialog(int pesananId)
+    {
+        var parameters = new MudBlazor.DialogParameters { ["PesananId"] = pesananId };
+        var options = new MudBlazor.DialogOptions { MaxWidth = MudBlazor.MaxWidth.Small, CloseOnEscapeKey = true, FullWidth = true };
+        DialogService.Show<PaymentDetailDialog>("Detail Pembayaran", parameters, options);
     }
 
     private List<Pesanan> PesananByStatus(string status) =>

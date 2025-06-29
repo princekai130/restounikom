@@ -1,16 +1,23 @@
 using Microsoft.AspNetCore.SignalR;
+using System.Threading.Tasks;
 
 namespace RestoUnikom.WebUi2.Hubs
 {
-    public class MejaHub : Hub
+    public class RestoHub : Hub
     {
-        // Method ini bisa dipanggil server untuk broadcast update status meja
+        // Broadcast ke semua client jika stok menu berubah
+        public async Task BroadcastMenuStokChanged()
+        {
+            await Clients.All.SendAsync("MenuStokChanged");
+        }
+
+        // Broadcast update status meja
         public async Task BroadcastStatusMejaChanged(int mejaId)
         {
             await Clients.All.SendAsync("StatusMejaChanged", mejaId);
         }
 
-        // Method baru untuk broadcast update pesanan
+        // Broadcast update pesanan
         public async Task BroadcastPesananChanged(int pesananId)
         {
             await Clients.All.SendAsync("PesananChanged", pesananId);

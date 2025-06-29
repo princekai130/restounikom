@@ -2,16 +2,15 @@
 
 <MudNavMenu>
     <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
-    <MudNavLink Href="daftar-menu-meja" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.RestaurantMenu">Daftar Menu & Stok</MudNavLink>
-    <AuthorizeView Roles="Pelayan,Admin">
+    <MudNavLink Href="daftar-menu-meja" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.RestaurantMenu">Daftar Menu</MudNavLink>
+    <AuthorizeView Roles="Koki,Admin">
         <Authorized>
-            <MudNavLink Href="pemesanan" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AddShoppingCart">Pemesanan</MudNavLink>
-            <MudNavLink Href="monitoring-meja" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.TableRestaurant">Pantau Meja</MudNavLink>
+            <MudNavLink Href="form-menu" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AddBox">Tambah Menu</MudNavLink>
         </Authorized>
     </AuthorizeView>
-    <AuthorizeView Roles="Kasir,Pelayan,Koki,Admin">
+    <AuthorizeView Roles="Kasir,Pelayan,Koki,Admin,Pemilik">
         <Authorized>
-            <MudNavLink Href="penyiapan" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ListAlt">Penyiapan</MudNavLink>
+            <MudNavLink Href="daftar-pesanan-meja" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ListAlt">Daftar Pesanan</MudNavLink>
         </Authorized>
     </AuthorizeView>
 </MudNavMenu>

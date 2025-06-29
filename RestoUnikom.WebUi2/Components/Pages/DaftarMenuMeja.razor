@@ -34,7 +34,7 @@
             @foreach (var kategori in FilteredKategori())
             {
                 <MudTabPanel Text="@kategori">
-                    <div style="position:relative;">
+                    <div style="position:relative; margin-top:10px">
                         <div class="menu-list-container" @ref="menuListRef">
                             <MudGrid Spacing="4">
                                 @foreach (var menu in FilteredMenusByKategori(kategori))
@@ -51,7 +51,12 @@
                                                 <MudCardMedia Image="@menu.GambarMenu" Height="180" Class="menu-image" />
                                                 <AuthorizeView Roles="Pelayan,Admin">
                                                     <Authorized>
-                                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(menu.StokTersedia <= 0)" OnClick="async () => await BukaDialogPemesanan(menu)" StartIcon="@Icons.Material.Filled.AddShoppingCart" Class="menu-pilih-btn">
+                                                        <MudButton Variant="Variant.Filled"
+                                                                   Color="Color.Primary"
+                                                                   Disabled="@(menu.StokTersedia <= 0)"
+                                                                   OnClick="async () => await BukaDialogPemesanan(menu)"
+                                                                   Class="menu-pilih-btn">
+                                                            <MudIcon Icon="@Icons.Material.Filled.AddShoppingCart" />
                                                         </MudButton>
                                                     </Authorized>
                                                 </AuthorizeView>
@@ -85,7 +90,7 @@
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
                    Class="mud-button-root mud-button-circular mud-elevation-6"
-                   Style="position: fixed; bottom: 32px; right: 32px; z-index: 1000;"
+                   Style="position: fixed; bottom: 32px; right: 32px; z-index: 3000;"
                    OnClick="ShowKeranjangDialog">
             <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" />
         </MudButton>
@@ -93,48 +98,68 @@
 </AuthorizeView>
 
 <style>
-.menu-card-equal-height {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 370px;
-}
-.menu-image-container {
-    position: relative;
-    width: 100%;
-    height: 180px;
-    overflow: hidden;
-}
-.menu-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-.stock-badge-top {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 2;
-}
-.menu-title {
-    margin-bottom: 8px;
-    line-height: 1.3;
-    height: 2.6em;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-}
-.menu-description {
-    color: var(--mud-palette-text-secondary);
-    line-height: 1.4;
-    height: 2.8em;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    margin-bottom: 12px;
-}
+    .menu-card-equal-height {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 250px;
+        max-height: 300px;
+    }
+
+    .menu-image-container {
+        position: relative;
+        width: 100%;
+        height: 180px;
+        overflow: hidden;
+    }
+
+    .menu-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .stock-badge-top {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 2;
+    }
+
+    .menu-title {
+        margin-bottom: 8px;
+        line-height: 1.2;
+        height: 1.2em; /* 1 baris */
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 1; /* Hanya 1 baris */
+        -webkit-box-orient: vertical;
+    }
+
+    .menu-description {
+        color: var(--mud-palette-text-secondary);
+        line-height: 1.2;
+        height: 2.4em; /* 2 baris */
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2; /* 2 baris */
+        -webkit-box-orient: vertical;
+        margin-bottom: 12px;
+    }
+
+    .menu-pilih-btn {
+        position: absolute;
+        bottom: 8px;
+        left: 30px; /* Tetap di kiri dengan jarak 30px */
+        z-index: 3;
+        padding: 4px 12px;
+        min-width: 40px;
+    }
+
+        .menu-pilih-btn:disabled {
+            background-color: rgba(0, 0, 0, 0.12) !important;
+            color: rgba(0, 0, 0, 0.26) !important;
+        }
 </style>
 
 @code {
@@ -299,6 +324,10 @@
                 {
                     pegawaiId = pegawai.PegawaiId;
                     namaPegawai = pegawai.NamaPegawai;
+                    // Debug peran pengguna
+                    var claims = user.Claims;
+                    var roles = claims.Where(c => c.Type == "role").Select(c => c.Value).ToList();
+                    Console.WriteLine($"User Roles: {string.Join(", ", roles)}"); // Debug di konsol
                 }
             }
         }

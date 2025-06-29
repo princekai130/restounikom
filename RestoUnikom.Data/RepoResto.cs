@@ -215,11 +215,103 @@ namespace RestoUnikom.Data
         }
 
         /// <summary>
+        /// Ambil semua pesanan dari semua meja beserta detail dan info meja.
+        /// </summary>
+        public async Task<List<Pesanan>> GetSemuaPesananAsync()
+        {
+            return await _context.Pesanans
+                .Include(p => p.Meja)
+                .Include(p => p.DetailPesanans)
+                .ThenInclude(dp => dp.Menu)
+                .OrderByDescending(p => p.PesananId)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Update status pesanan.
+        /// </summary>
+        public async Task<bool> UpdateStatusPesananAsync(int pesananId, string statusBaru)
+        {
+            var pesanan = await _context.Pesanans.FindAsync(pesananId);
+            if (pesanan == null) return false;
+            pesanan.StatusPesanan = statusBaru;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        /// <summary>
         /// Ambil pegawai berdasarkan nama pengguna.
         /// </summary>
         public async Task<Pegawai?> GetPegawaiByNamaPengguna(string namaPengguna)
         {
             return await _context.Pegawais.FirstOrDefaultAsync(p => p.NamaPengguna.ToLower() == namaPengguna.ToLower());
+        }
+
+        /// <summary>
+        /// Ambil semua stok bahan.
+        /// </summary>
+        public async Task<List<StokBahan>> GetAllStokBahanAsync()
+        {
+            return await _context.StokBahans.AsNoTracking().ToListAsync();
+        }
+
+        /// <summary>
+        /// Tambah atau update menu. Return MenuId.
+        /// </summary>
+        public async Task<int> AddOrUpdateMenuAsync(Menu menu)
+        {
+            if (menu.MenuId == 0)
+            {
+                menu.TanggalDitambahkan = DateOnly.FromDateTime(DateTime.Now);
+                _context.Menus.Add(menu);
+            }
+            else
+            {
+                var existing = await _context.Menus.FindAsync(menu.MenuId);
+                if (existing == null) throw new Exception("Menu tidak ditemukan");
+                _context.Entry(existing).CurrentValues.SetValues(menu);
+            }
+            await _context.SaveChangesAsync();
+            return menu.MenuId;
+        }
+
+        /// <summary>
+        /// Tambah atau update MenuBahan untuk menu tertentu.
+        /// </summary>
+        public async Task AddOrUpdateMenuBahanAsync(int menuId, int bahanId, double jumlahDibutuhkan)
+        {
+            var menuBahan = await _context.MenuBahans.FirstOrDefaultAsync(mb => mb.MenuId == menuId && mb.BahanId == bahanId);
+            if (menuBahan == null)
+            {
+                menuBahan = new MenuBahan { MenuId = menuId, BahanId = bahanId, JumlahDibutuhkan = jumlahDibutuhkan };
+                _context.MenuBahans.Add(menuBahan);
+            }
+            else
+            {
+                menuBahan.JumlahDibutuhkan = jumlahDibutuhkan;
+            }
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Ambil semua MenuBahan untuk menu tertentu.
+        /// </summary>
+        public async Task<List<MenuBahan>> GetMenuBahansByMenuIdAsync(int menuId)
+        {
+            return await _context.MenuBahans.AsNoTracking().Where(mb => mb.MenuId == menuId).ToListAsync();
+        }
+
+        /// <summary>
+        /// Hapus MenuBahan tertentu dari menu.
+        /// </summary>
+        public async Task DeleteMenuBahanAsync(int menuId, int bahanId)
+        {
+            var menuBahan = await _context.MenuBahans.FirstOrDefaultAsync(mb => mb.MenuId == menuId && mb.BahanId == bahanId);
+            if (menuBahan != null)
+            {
+                _context.MenuBahans.Remove(menuBahan);
+                await _context.SaveChangesAsync();
+            }
         }
     }
 }

@@ -64,6 +64,13 @@
                                             <MudCardContent>
                                                 <MudText Typo="Typo.subtitle1" Class="menu-title">@menu.NamaMenu</MudText>
                                                 <MudText Typo="Typo.body2" Class="menu-description">@menu.Deskripsi</MudText>
+                                                <AuthorizeView Roles="Koki,Admin">
+                                                    <Authorized>
+                                                        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => Navigation.NavigateTo($"/form-menu?menuId={menu.MenuId}", true))" StartIcon="@Icons.Material.Filled.Edit" Class="mt-1">
+                                                            Edit Menu
+                                                        </MudButton>
+                                                    </Authorized>
+                                                </AuthorizeView>
                                             </MudCardContent>
                                         </MudCard>
                                     </MudItem>
@@ -77,134 +84,6 @@
     }
 </MudContainer>
 
-<MudButton Class="fab-keranjang" Color="Color.Primary" Variant="Variant.Filled" Style="border-radius:50%; min-width:56px; min-height:56px; width:56px; height:56px; box-shadow:0 4px 16px rgba(0,0,0,0.18);" OnClick="ShowKeranjangDialog">
-    <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" />
-</MudButton>
-
-<style>
-    .menu-card-equal-height {
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        min-height: 240px;
-        max-height: 260px;
-        border-radius: 12px;
-        transition: transform 0.2s ease-in-out;
-    }
-
-        .menu-card-equal-height:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-        }
-
-    .menu-image-container {
-        position: relative;
-        width: 100%;
-        height: 160px;
-        overflow: hidden;
-    }
-
-    .menu-image {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        transition: transform 0.3s ease;
-    }
-
-        .menu-image:hover {
-            transform: scale(1.05);
-        }
-
-    .stock-badge {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        z-index: 2;
-        font-weight: 600;
-        padding: 4px 8px;
-    }
-
-    .edit-stock-btn {
-        position: absolute;
-        top: 40px;
-        right: 10px;
-        z-index: 2;
-        font-size: 0.8rem;
-        padding: 2px 8px;
-    }
-
-    .menu-pilih-btn {
-        position: absolute;
-        left: 12px;
-        bottom: 12px;
-        z-index: 3;
-        min-width: 40px;
-        width: 40px;
-        height: 40px;
-        padding: 0;
-        border-radius: 50%;
-    }
-
-    .menu-title {
-        margin-bottom: 1px;
-        line-height: 1.2;
-        height: 1.5em;
-        overflow: hidden;
-        display: -webkit-box;
-        -webkit-line-clamp: 1;
-        -webkit-box-orient: vertical;
-        text-transform: uppercase;
-        font-size: 0.95rem;
-    }
-
-    .menu-description {
-        line-height: 1.3;
-        max-height: 2.6em;
-        overflow: hidden;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-    }
-
-    .mud-card-content {
-        padding: 6px 12px !important;
-        flex-grow: 0;
-    }
-
-    .fab-keranjang {
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        z-index: 1001;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.18);
-        transition: transform 0.2s ease-in-out;
-    }
-
-        .fab-keranjang:hover {
-            transform: scale(1.1);
-        }
-
-    .sticky-header {
-        position: sticky;
-        top: 0;
-        z-index: 900; /* Kurang dari z-index appbar (biasanya 1000) */
-        background-color: var(--mud-palette-background); /* Sesuai tema */
-    }
-
-    .menu-list-container {
-        max-height: calc(100vh - 240px);
-        overflow-y: auto;
-        padding-top: 24px;
-        padding-bottom: 48px; 
-    }
-
-    html, body {
-        height: 100%;
-        margin: 0;
-        overflow: hidden;
-    }
-</style>
-
 @code {
     private string teksPencarian = string.Empty;
     private bool isLoading = true;
@@ -215,6 +94,7 @@
     private int pegawaiId = 0;
     private string? namaPegawai;
     private HubConnection? hubConnection;
+    private HubConnection? hubConnectionMeja;
     private bool _disposed = false;
     private int activeTabIndex = 0;
     private ElementReference menuListRef;
@@ -297,6 +177,10 @@
             if (hubConnection != null && hubConnection.State == HubConnectionState.Connected)
             {
                 await hubConnection.SendAsync("BroadcastMenuStokChanged");
+            }
+            if (hubConnectionMeja != null && hubConnectionMeja.State == HubConnectionState.Connected)
+            {
+                await hubConnectionMeja.SendAsync("BroadcastPesananChanged", pesanan.PesananId);
             }
             Navigation.NavigateTo($"/pesanan-meja/{mejaTerpilih.MejaId}");
         }
@@ -409,13 +293,14 @@
         menus = await RepoResto.GetAllMenusAsync() ?? new List<Menu>();
         mejasKosong = await RepoResto.GetMejasKosongAtauDitempatiAsync() ?? new List<Meja>();
         await InitSignalR();
+        await InitSignalRMeja();
         isLoading = false;
     }
 
     private async Task InitSignalR()
     {
         hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/menuhub"))
+            .WithUrl(Navigation.ToAbsoluteUri("/restohub"))
             .WithAutomaticReconnect()
             .Build();
         hubConnection.On("MenuStokChanged", async () =>
@@ -437,6 +322,15 @@
         await hubConnection.StartAsync();
     }
 
+    private async Task InitSignalRMeja()
+    {
+        hubConnectionMeja = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/restohub"))
+            .WithAutomaticReconnect()
+            .Build();
+        await hubConnectionMeja.StartAsync();
+    }
+
     private Meja mejaSelected => mejasKosong?.FirstOrDefault(m => m.MejaId == mejaTerpilihId);
 
     private class IsiKeranjang
@@ -451,5 +345,7 @@
         _disposed = true;
         if (hubConnection != null)
             await hubConnection.DisposeAsync();
+        if (hubConnectionMeja != null)
+            await hubConnectionMeja.DisposeAsync();
     }
 }

@@ -1,0 +1,299 @@
+@page "/daftar-pesanan-meja"
+@inject RestoUnikom.Data.RepoResto RepoResto
+@inject MudBlazor.ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
+@inject IServiceScopeFactory ScopeFactory
+@using RestoUnikom.Data.Models
+@using RestoUnikom.Data
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Daftar Pesanan Meja</PageTitle>
+
+@if (!isAuthChecked)
+{
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+}
+else if (isDenied)
+{
+    @if (!hasRedirected404)
+    {
+        hasRedirected404 = true;
+        Navigation.NavigateTo("/404", true);
+    }
+}
+else
+{
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-md-4 mt-2 py-4">
+    <MudText Typo="Typo.h4" Class="mb-2" Color="Color.Primary">
+        <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Class="mr-2" />
+        Daftar Pesanan Semua Meja
+    </MudText>
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker @bind-Date="tanggalAwal" Label="Tanggal Awal" DateFormat="dd/MM/yyyy" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker @bind-Date="tanggalAkhir" Label="Tanggal Akhir" DateFormat="dd/MM/yyyy" />
+        </MudItem>
+    </MudGrid>
+    @if (isLoading)
+    {
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+    }
+    else if (FilteredPesanan().Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">Belum ada pesanan.</MudAlert>
+    }
+    else
+    {
+        <MudTabs @bind-ActivePanelIndex="activeTabIndex" Rounded="true" Color="Color.Primary" Elevation="2">
+            @for (int i = 0; i < statusList.Length; i++)
+            {
+                var status = statusList[i];
+                var pesananList = PesananByStatus(status);
+                <MudTabPanel Text="@status">
+                    @if (pesananList.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info">Tidak ada pesanan dengan status @status.</MudAlert>
+                    }
+                    else
+                    {
+                        <MudTable Items="@pesananList" Hover="true" Dense="true" Class="responsive-table">
+                            <HeaderContent>
+                                <MudTh>Meja</MudTh>
+                                <MudTh>Status</MudTh>
+                                <MudTh>Waktu</MudTh>
+                                <MudTh>Detail Pesanan</MudTh>
+                                <MudTh>Aksi</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.Meja?.NomorMeja</MudTd>
+                                <MudTd><MudChip T="string" Color="@GetStatusColor(context.StatusPesanan)" Variant="Variant.Filled">@context.StatusPesanan</MudChip></MudTd>
+                                <MudTd>@context.TanggalPesanan</MudTd>
+                                <MudTd>
+                                    <MudList T="object" Dense="true">
+                                        @foreach (var d in context.DetailPesanans)
+                                        {
+                                            <MudListItem T="object">
+                                                <MudText Typo="Typo.body2">@d.Menu?.NamaMenu (@d.Jumlah) <span style="color:gray;font-size:0.9em">@d.Catatan</span></MudText>
+                                            </MudListItem>
+                                        }
+                                    </MudList>
+                                </MudTd>
+                                <MudTd>
+                                    @if ((IsKoki || IsAdmin) && context.StatusPesanan == StatusPesananMenunggu.ToString())
+                                    {
+                                        <MudButton Color="Color.Info" Variant="Variant.Filled" OnClick="@(() => UpdateStatus(context.PesananId, StatusPesananDisiapkan))">Disiapkan</MudButton>
+                                    }
+                                    @if ((IsKoki || IsAdmin) && context.StatusPesanan == StatusPesananDisiapkan.ToString())
+                                    {
+                                        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="@(() => UpdateStatus(context.PesananId, StatusPesananSelesai))">Selesai</MudButton>
+                                    }
+                                    @if ((IsPelayan || IsAdmin) && context.StatusPesanan == StatusPesananSelesai.ToString())
+                                    {
+                                        <MudButton Color="Color.Warning" Variant="Variant.Filled" OnClick="@(() => UpdateStatus(context.PesananId, StatusPesananDiantarkan))">Diantarkan</MudButton>
+                                    }
+                                    @if ((IsKasir || IsAdmin) && context.StatusPesanan == StatusPesananDiantarkan.ToString())
+                                    {
+                                        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => UpdateStatus(context.PesananId, StatusPesananDibayar))">Dibayar</MudButton>
+                                    }
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                </MudTabPanel>
+            }
+        </MudTabs>
+    }
+</MudContainer>
+}
+@code {
+    private List<Pesanan>? semuaPesanan;
+    private bool isLoading = true;
+    private string? userRole;
+    private AuthenticationState? authState;
+    private HubConnection? hubConnection;
+    private bool _disposed = false;
+    private int pegawaiId = 0;
+    private string? namaPegawai;
+    private bool isAuthenticated = false;
+    private bool pegawaiValid = false;
+    private bool shouldRedirectToLogin = false;
+    private DateTime? tanggalAwal = null;
+    private DateTime? tanggalAkhir = null;
+    private int activeTabIndex = 0;
+    private readonly string[] statusList = new[] {
+        StatusPesananMenunggu.ToString(),
+        StatusPesananDisiapkan.ToString(),
+        StatusPesananSelesai.ToString(),
+        StatusPesananDiantarkan.ToString(),
+        StatusPesananDibayar.ToString()
+    };
+
+    private bool isAuthChecked = false;
+    private bool isDenied = false;
+    private bool hasRedirected404 = false;
+
+    // Pakai enum StatusPesanan dari RepoResto
+    private static readonly RepoResto.StatusPesanan StatusPesananMenunggu = RepoResto.StatusPesanan.Menunggu;
+    private static readonly RepoResto.StatusPesanan StatusPesananDisiapkan = RepoResto.StatusPesanan.Disiapkan;
+    private static readonly RepoResto.StatusPesanan StatusPesananSelesai = RepoResto.StatusPesanan.Selesai;
+    private static readonly RepoResto.StatusPesanan StatusPesananDiantarkan = RepoResto.StatusPesanan.Diantarkan;
+    private static readonly RepoResto.StatusPesanan StatusPesananDibayar = RepoResto.StatusPesanan.Dibayar;
+    private static readonly RepoResto.StatusPesanan StatusPesananDibatalkan = RepoResto.StatusPesanan.Dibatalkan;
+
+    private bool IsKoki => userRole == "Koki";
+    private bool IsKasir => userRole == "Kasir";
+    private bool IsAdmin => userRole == "Admin";
+    private bool IsPelayan => userRole == "Pelayan";
+    private bool IsPemilik => userRole == "Pemilik";
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        // Set default tanggal filter ke hari ini
+        var today = DateTime.Today;
+        tanggalAwal = today;
+        tanggalAkhir = today;
+        authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        userRole = user.Claims.FirstOrDefault(c => c.Type == "role" || c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role")?.Value;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            isAuthenticated = true;
+            var username = user.Identity.Name;
+            if (!string.IsNullOrEmpty(username))
+            {
+                var pegawai = await RepoResto.GetPegawaiByNamaPengguna(username);
+                if (pegawai != null)
+                {
+                    pegawaiId = pegawai.PegawaiId;
+                    namaPegawai = pegawai.NamaPegawai;
+                    pegawaiValid = true;
+                }
+                else
+                {
+                    isDenied = true;
+                }
+            }
+            else
+            {
+                isDenied = true;
+            }
+        }
+        else
+        {
+            isDenied = true;
+        }
+        isAuthChecked = true;
+        if (!isDenied)
+        {
+            semuaPesanan = await RepoResto.GetSemuaPesananAsync();
+            await InitSignalR();
+        }
+        isLoading = false;
+    }
+
+    private async Task InitSignalR()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/restohub"))
+            .WithAutomaticReconnect()
+            .Build();
+        hubConnection.On<int>("PesananChanged", async (pesananId) =>
+        {
+            if (_disposed) return;
+            try
+            {
+                using var scope = ScopeFactory.CreateScope();
+                var repo = scope.ServiceProvider.GetRequiredService<RestoUnikom.Data.RepoResto>();
+                semuaPesanan = await repo.GetSemuaPesananAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (ObjectDisposedException) { /* ignore */ }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Gagal reload pesanan: {ex.Message}", MudBlazor.Severity.Error);
+            }
+        });
+        await hubConnection.StartAsync();
+    }
+
+    private List<Pesanan> FilteredPesanan()
+    {
+        if (semuaPesanan == null) return new List<Pesanan>();
+        var filtered = semuaPesanan
+            .Where(p => !string.Equals(p.StatusPesanan, StatusPesananDibatalkan.ToString(), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (tanggalAwal.HasValue)
+        {
+            filtered = filtered.Where(p => TryParseTanggal(p.TanggalPesanan, out var tgl) && tgl.Date >= tanggalAwal.Value.Date).ToList();
+        }
+        if (tanggalAkhir.HasValue)
+        {
+            filtered = filtered.Where(p => TryParseTanggal(p.TanggalPesanan, out var tgl) && tgl.Date <= tanggalAkhir.Value.Date).ToList();
+        }
+        return filtered;
+    }
+
+    private IEnumerable<IGrouping<string, Pesanan>> GroupedPesananByStatus()
+    {
+        var filtered = FilteredPesanan();
+        var statusList = new[] { StatusPesananMenunggu.ToString(), StatusPesananDisiapkan.ToString(), StatusPesananSelesai.ToString(), StatusPesananDiantarkan.ToString(), StatusPesananDibayar.ToString() };
+        return filtered
+            .Where(p => statusList.Contains(p.StatusPesanan))
+            .GroupBy(p => p.StatusPesanan)
+            .OrderBy(g => Array.IndexOf(statusList, g.Key));
+    }
+
+    private bool TryParseTanggal(string tanggal, out DateTime tgl)
+    {
+        tgl = default;
+        if (string.IsNullOrWhiteSpace(tanggal)) return false;
+        // Format: yyyy-MM-dd HH:mm:ss
+        return DateTime.TryParseExact(tanggal, "yyyy-MM-dd HH:mm:ss", null, System.Globalization.DateTimeStyles.None, out tgl)
+            || DateTime.TryParse(tanggal, out tgl);
+    }
+
+    private MudBlazor.Color GetStatusColor(string status)
+    {
+        if (!Enum.TryParse<RepoResto.StatusPesanan>(status, out var statusEnum))
+            return MudBlazor.Color.Default;
+        return statusEnum switch
+        {
+            RepoResto.StatusPesanan.Menunggu => MudBlazor.Color.Default,
+            RepoResto.StatusPesanan.Disiapkan => MudBlazor.Color.Info,
+            RepoResto.StatusPesanan.Selesai => MudBlazor.Color.Success,
+            RepoResto.StatusPesanan.Diantarkan => MudBlazor.Color.Warning,
+            RepoResto.StatusPesanan.Dibayar => MudBlazor.Color.Primary,
+            RepoResto.StatusPesanan.Dibatalkan => MudBlazor.Color.Error,
+            _ => MudBlazor.Color.Default
+        };
+    }
+
+    private async Task UpdateStatus(int pesananId, RepoResto.StatusPesanan statusBaru)
+    {
+        var ok = await RepoResto.UpdateStatusPesananAsync(pesananId, statusBaru.ToString());
+        if (ok)
+        {
+            Snackbar.Add($"Status pesanan diupdate ke {statusBaru}", MudBlazor.Severity.Success);
+            semuaPesanan = await RepoResto.GetSemuaPesananAsync();
+            // Broadcast ke semua client
+            if (hubConnection != null && hubConnection.State == HubConnectionState.Connected)
+            {
+                await hubConnection.SendAsync("BroadcastPesananChanged", pesananId);
+            }
+            StateHasChanged();
+        }
+        else
+        {
+            Snackbar.Add("Gagal update status pesanan", MudBlazor.Severity.Error);
+        }
+    }
+
+    private List<Pesanan> PesananByStatus(string status) =>
+        FilteredPesanan().Where(p => p.StatusPesanan == status).ToList();
+}

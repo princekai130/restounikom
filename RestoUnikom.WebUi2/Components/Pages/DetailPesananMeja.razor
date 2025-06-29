@@ -27,46 +27,47 @@
         <MudPaper Class="pa-4 mb-4 flex-grow-0" Elevation="2" Style="border-radius: 12px;">
             <MudText Typo="Typo.h6">Status Meja: <b>@mejaInfo?.StatusMeja</b></MudText>
         </MudPaper>
-        <div class="content-area" style="flex-grow: 1; overflow-y: auto; padding-bottom: 80px;">
-            <MudExpansionPanels MultiExpansion="true" Class="mb-4">
-                @foreach (var pesanan in semuaPesanan)
-                {
-                    <MudExpansionPanel Text="@($"Pesanan {pesanan.PesananId} - Status: {pesanan.StatusPesanan} - Tanggal: {pesanan.TanggalPesanan:dd/MM/yyyy HH:mm}")" Class="mb-2" Style="border-radius: 8px;">
-                        <MudTable Items="@pesanan.DetailPesanans.ToList()" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Class="responsive-table" Style="min-width: 100%;">
-                            <HeaderContent>
-                                <MudTh Style="min-width: 120px;">Menu</MudTh>
-                                <MudTh Style="min-width: 80px;">Jumlah</MudTh>
-                                <MudTh Style="min-width: 100px;">Harga</MudTh>
-                                <MudTh Style="min-width: 150px;">Catatan</MudTh>
-                                <MudTh Style="min-width: 80px;"></MudTh>
-                            </HeaderContent>
-                            <RowTemplate>
-                                <MudTd Style="min-width: 120px;">@context.Menu?.NamaMenu</MudTd>
-                                <MudTd Style="min-width: 80px;">@context.Jumlah</MudTd>
-                                <MudTd Style="min-width: 100px;">Rp @context.HargaSatuan.ToString("N0")</MudTd>
-                                <MudTd Style="min-width: 150px;">@context.Catatan</MudTd>
-                                <MudTd Style="min-width: 80px;">
-                                    @if (pesanan.StatusPesanan == "Menunggu")
-                                    {
-                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => HapusDetailPesanan(context)" />
-                                    }
-                                </MudTd>
-                            </RowTemplate>
-                        </MudTable>
-                        <MudText Typo="Typo.subtitle2" Class="mt-2 flex-grow-0">
-                            Total: <b>Rp @pesanan.DetailPesanans.Sum(d => d.HargaSatuan * d.Jumlah).ToString("N0")</b>
-                        </MudText>
-                        @if (pesanan.StatusPesanan == "Menunggu")
+        <MudGrid Class="mb-4">
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker @bind-Date="tanggalAwal" Label="Tanggal Awal" DateFormat="dd/MM/yyyy" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker @bind-Date="tanggalAkhir" Label="Tanggal Akhir" DateFormat="dd/MM/yyyy" />
+            </MudItem>
+        </MudGrid>
+        <MudTabs Rounded="true" Color="Color.Primary" Elevation="2" Class="mb-4">
+            <MudTabPanel Text="Menunggu">
+                <div class="content-area">
+                    <MudExpansionPanels MultiExpansion="true" Class="mb-4">
+                        @foreach (var pesanan in FilteredPesanan().Where(p => p.StatusPesanan == "Menunggu"))
                         {
-                            <div class="mt-3 flex-grow-0">
-                                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="() => TambahMenuKePesanan(pesanan.PesananId)">Tambah Menu</MudButton>
+                            <MudExpansionPanel Text="@($"Pesanan {pesanan.PesananId} - Status: {pesanan.StatusPesanan} - Tanggal: {pesanan.TanggalPesanan:dd/MM/yyyy HH:mm}")" Class="mb-2" Style="border-radius: 8px;">
+                                <MudText Typo="Typo.subtitle2" Class="mb-2">Total: <b>Rp @pesanan.DetailPesanans.Sum(d => d.HargaSatuan * d.Jumlah).ToString("N0")</b></MudText>
+                                <MudText Typo="Typo.body2" Class="mb-2">Status: <b>@pesanan.StatusPesanan</b></MudText>
+                                <MudText Typo="Typo.body2" Class="mb-2">Waktu: <b>@pesanan.TanggalPesanan</b></MudText>
+                                <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="() => ShowPesananDetailDialog(pesanan)">Lihat Detail & Aksi</MudButton>
                                 <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Cancel" Size="Size.Small" Class="ml-2" OnClick="() => BatalkanPesanan(pesanan.PesananId)">Batalkan Pesanan</MudButton>
-                            </div>
+                            </MudExpansionPanel>
                         }
-                    </MudExpansionPanel>
-                }
-            </MudExpansionPanels>
-        </div>
+                    </MudExpansionPanels>
+                </div>
+            </MudTabPanel>
+            <MudTabPanel Text="Dibatalkan">
+                <div class="content-area">
+                    <MudExpansionPanels MultiExpansion="true" Class="mb-4">
+                        @foreach (var pesanan in FilteredPesanan().Where(p => p.StatusPesanan == "Dibatalkan"))
+                        {
+                            <MudExpansionPanel Text="@($"Pesanan {pesanan.PesananId} - Status: {pesanan.StatusPesanan} - Tanggal: {pesanan.TanggalPesanan:dd/MM/yyyy HH:mm}")" Class="mb-2" Style="border-radius: 8px;">
+                                <MudText Typo="Typo.subtitle2" Class="mb-2">Total: <b>Rp @pesanan.DetailPesanans.Sum(d => d.HargaSatuan * d.Jumlah).ToString("N0")</b></MudText>
+                                <MudText Typo="Typo.body2" Class="mb-2">Status: <b>@pesanan.StatusPesanan</b></MudText>
+                                <MudText Typo="Typo.body2" Class="mb-2">Waktu: <b>@pesanan.TanggalPesanan</b></MudText>
+                                <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="() => ShowPesananDetailDialog(pesanan)">Lihat Detail</MudButton>
+                            </MudExpansionPanel>
+                        }
+                    </MudExpansionPanels>
+                </div>
+            </MudTabPanel>
+        </MudTabs>
         <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ArrowBack" Class="mt-4 flex-grow-0" OnClick="KembaliKeMenu">Kembali</MudButton>
     }
 </MudContainer>
@@ -88,7 +89,6 @@
 
     .content-area {
         flex-grow: 1;
-        overflow-y: auto; /* Pastikan scroll vertikal aktif */
         padding-bottom: 80px; /* Ruang untuk tombol "Kembali" */
     }
 
@@ -134,20 +134,28 @@
     private List<Pesanan>? semuaPesanan;
     private bool isLoading = true;
     private HubConnection? hubConnection;
+    private HubConnection? hubConnectionMeja;
+    private DateTime? tanggalAwal = null;
+    private DateTime? tanggalAkhir = null;
 
     protected override async Task OnInitializedAsync()
     {
         isLoading = true;
+        // Set default tanggal filter ke hari ini
+        var today = DateTime.Today;
+        tanggalAwal = today;
+        tanggalAkhir = today;
         mejaInfo = await RepoResto.GetMejaByIdAsync(MejaId);
         semuaPesanan = await RepoResto.GetSemuaPesananByMejaIdAsync(MejaId);
         await InitSignalR();
+        await InitSignalRMeja();
         isLoading = false;
     }
 
     private async Task InitSignalR()
     {
         hubConnection = new HubConnectionBuilder()
-            .WithUrl(Navigation.ToAbsoluteUri("/menuhub"))
+            .WithUrl(Navigation.ToAbsoluteUri("/restohub"))
             .WithAutomaticReconnect()
             .Build();
         hubConnection.On("MenuStokChanged", async () =>
@@ -157,10 +165,21 @@
         await hubConnection.StartAsync();
     }
 
+    private async Task InitSignalRMeja()
+    {
+        hubConnectionMeja = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/restohub"))
+            .WithAutomaticReconnect()
+            .Build();
+        await hubConnectionMeja.StartAsync();
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (hubConnection != null)
             await hubConnection.DisposeAsync();
+        if (hubConnectionMeja != null)
+            await hubConnectionMeja.DisposeAsync();
     }
 
     private void KembaliKeMenu()
@@ -227,11 +246,50 @@
                 semuaPesanan = await RepoResto.GetSemuaPesananByMejaIdAsync(MejaId);
                 if (hubConnection != null && hubConnection.State == HubConnectionState.Connected)
                     await hubConnection.SendAsync("BroadcastMenuStokChanged");
+                if (hubConnectionMeja != null && hubConnectionMeja.State == HubConnectionState.Connected)
+                    await hubConnectionMeja.SendAsync("BroadcastPesananChanged", pesananId);
             }
             else
             {
                 Snackbar.Add("Gagal membatalkan pesanan (mungkin status sudah bukan Menunggu).", MudBlazor.Severity.Error);
             }
+        }
+    }
+
+    private List<Pesanan> FilteredPesanan()
+    {
+        if (semuaPesanan == null) return new List<Pesanan>();
+        var filtered = semuaPesanan;
+        if (tanggalAwal.HasValue)
+        {
+            filtered = filtered.Where(p => TryParseTanggal(p.TanggalPesanan, out var tgl) && tgl.Date >= tanggalAwal.Value.Date).ToList();
+        }
+        if (tanggalAkhir.HasValue)
+        {
+            filtered = filtered.Where(p => TryParseTanggal(p.TanggalPesanan, out var tgl) && tgl.Date <= tanggalAkhir.Value.Date).ToList();
+        }
+        return filtered;
+    }
+
+    private bool TryParseTanggal(string tanggal, out DateTime tgl)
+    {
+        tgl = default;
+        if (string.IsNullOrWhiteSpace(tanggal)) return false;
+        // Format: yyyy-MM-dd HH:mm:ss
+        return DateTime.TryParseExact(tanggal, "yyyy-MM-dd HH:mm:ss", null, System.Globalization.DateTimeStyles.None, out tgl)
+            || DateTime.TryParse(tanggal, out tgl);
+    }
+
+    private async Task ShowPesananDetailDialog(Pesanan pesanan)
+    {
+        var parameters = new MudBlazor.DialogParameters { ["Pesanan"] = pesanan };
+        var options = new MudBlazor.DialogOptions { MaxWidth = MudBlazor.MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        var dialog = DialogService.Show<PesananDetailDialog>("Detail & Aksi Pesanan", parameters, options);
+        var result = await dialog.Result;
+        if (!result.Canceled && result.Data is bool reload && reload)
+        {
+            semuaPesanan = await RepoResto.GetSemuaPesananByMejaIdAsync(MejaId);
+            StateHasChanged();
         }
     }
 }

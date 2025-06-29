@@ -1,0 +1,110 @@
+@using MudBlazor
+@using RestoUnikom.Data.Models
+@inject RestoUnikom.Data.RepoResto RepoResto
+@inject MudBlazor.ISnackbar Snackbar
+@inject MudBlazor.IDialogService DialogService
+
+<MudDialog MaxWidth="MaxWidth.Medium" FullWidth="true">
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-2">Detail Pesanan #@Pesanan.PesananId</MudText>
+        <MudText Typo="Typo.body2" Class="mb-2">Status: <b>@Pesanan.StatusPesanan</b></MudText>
+        <MudText Typo="Typo.body2" Class="mb-2">Waktu: <b>@Pesanan.TanggalPesanan</b></MudText>
+        <MudTable Items="@Pesanan.DetailPesanans.ToList()" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Class="responsive-table" Style="max-height: 300px; overflow-y: auto; min-width: 100%;">
+            <HeaderContent>
+                <MudTh>Menu</MudTh>
+                <MudTh>Jumlah</MudTh>
+                <MudTh>Harga</MudTh>
+                <MudTh>Catatan</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Menu?.NamaMenu</MudTd>
+                <MudTd>@context.Jumlah</MudTd>
+                <MudTd>Rp @context.HargaSatuan.ToString("N0")</MudTd>
+                <MudTd>@context.Catatan</MudTd>
+                <MudTd>
+                    @if (Pesanan.StatusPesanan == "Menunggu")
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => HapusDetailPesanan(context)" />
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+        <MudText Typo="Typo.subtitle2" Class="mt-2">Total: <b>Rp @Pesanan.DetailPesanans.Sum(d => d.HargaSatuan * d.Jumlah).ToString("N0")</b></MudText>
+        @if (Pesanan.StatusPesanan == "Menunggu")
+        {
+            <div class="mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="TambahMenuKePesanan">Tambah Menu</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Cancel" Size="Size.Small" Class="ml-2" OnClick="BatalkanPesanan">Batalkan Pesanan</MudButton>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Secondary" OnClick="() => MudDialog.Close(false)">Tutup</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Pesanan Pesanan { get; set; } = default!;
+
+    private async Task HapusDetailPesanan(DetailPesanan detail)
+    {
+        var confirmed = await DialogService.ShowMessageBox("Konfirmasi", $"Hapus detail pesanan {detail.Menu?.NamaMenu} x{detail.Jumlah}?", yesText: "Hapus", cancelText: "Batal");
+        if (confirmed == true)
+        {
+            var result = await RepoResto.DeleteDetailPesananAsync(detail.DetailPesananId);
+            if (result)
+            {
+                Snackbar.Add("Detail pesanan dihapus.", MudBlazor.Severity.Success);
+                Pesanan.DetailPesanans.Remove(detail);
+                MudDialog.Close(true); // reload parent
+            }
+            else
+            {
+                Snackbar.Add("Gagal menghapus detail pesanan.", MudBlazor.Severity.Error);
+            }
+        }
+    }
+
+    private async Task TambahMenuKePesanan()
+    {
+        var allMenus = await RepoResto.GetAllMenusAsync();
+        var availableMenus = allMenus.Where(m => m.StokTersedia > 0).ToList();
+        var parameters = new MudBlazor.DialogParameters { ["Menus"] = availableMenus };
+        var options = new MudBlazor.DialogOptions { MaxWidth = MudBlazor.MaxWidth.Small, CloseOnEscapeKey = true, FullWidth = true };
+        var dialog = DialogService.Show<TambahDetailPesananDialog>("Tambah Menu ke Pesanan", parameters, options);
+        var result = await dialog.Result;
+        if (!result.Canceled && result.Data is ValueTuple<int, int, string> data)
+        {
+            var added = await RepoResto.AddDetailPesananAsync(Pesanan.PesananId, data.Item1, data.Item2, data.Item3);
+            if (added != null)
+            {
+                Snackbar.Add("Menu berhasil ditambahkan ke pesanan.", MudBlazor.Severity.Success);
+                MudDialog.Close(true); // reload parent
+            }
+            else
+            {
+                Snackbar.Add("Gagal menambah menu ke pesanan (stok tidak cukup atau error).", MudBlazor.Severity.Error);
+            }
+        }
+    }
+
+    private async Task BatalkanPesanan()
+    {
+        var confirmed = await DialogService.ShowMessageBox("Konfirmasi", "Batalkan pesanan ini? Semua menu akan dikembalikan ke stok.", yesText: "Batalkan", cancelText: "Batal");
+        if (confirmed == true)
+        {
+            var result = await RepoResto.CancelPesananAsync(Pesanan.PesananId);
+            if (result)
+            {
+                Snackbar.Add("Pesanan berhasil dibatalkan.", MudBlazor.Severity.Success);
+                MudDialog.Close(true); // reload parent
+            }
+            else
+            {
+                Snackbar.Add("Gagal membatalkan pesanan (mungkin status sudah bukan Menunggu).", MudBlazor.Severity.Error);
+            }
+        }
+    }
+}

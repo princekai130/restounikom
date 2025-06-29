@@ -1,0 +1,200 @@
+@using RestoUnikom.Data.Models
+@using MudBlazor
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.SignalR.Client
+@page "/form-menu"
+@page "/form-menu/{menuId:int}"
+@inject RestoUnikom.Data.RepoResto RepoResto
+@inject MudBlazor.ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject MudBlazor.IDialogService DialogService
+@inject IServiceScopeFactory ScopeFactory
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Form Menu</PageTitle>
+
+<AuthorizeView Roles="Koki,Admin">
+    <Authorized>
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="py-6 d-flex flex-column align-center justify-center">
+            <MudPaper Elevation="3" Class="pa-6" Style="border-radius: 16px; width:100%; max-width:600px;">
+                <MudText Typo="Typo.h5" Color="Color.Primary" Class="mb-4">@(_isEdit ? "Edit Menu" : "Tambah Menu Baru")</MudText>
+                <MudForm @ref="_form" @bind-IsValid="_isValid">
+                    <MudTextField T="string" Label="Nama Menu" @bind-Value="menu.NamaMenu" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+                    <MudTextField T="string" Label="Kategori" @bind-Value="menu.Kategori" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+                    <MudTextField T="string" Label="Deskripsi" @bind-Value="menu.Deskripsi" Variant="Variant.Outlined" Class="mb-3" />
+                    <MudNumericField T="double" Label="Harga" @bind-Value="menu.Harga" Required="true" Variant="Variant.Outlined" Class="mb-3" Adornment="Adornment.Start" AdornmentText="Rp" />
+                    <MudNumericField T="int" Label="Stok Tersedia" @bind-Value="menu.StokTersedia" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+                    <MudNumericField T="int" Label="Waktu Pembuatan (menit)" @bind-Value="menu.WaktuPembuatan" Required="true" Variant="Variant.Outlined" Class="mb-3" />
+                    <MudTextField T="string" Label="URL Gambar Menu" @bind-Value="menu.GambarMenu" Variant="Variant.Outlined" Class="mb-3" />
+                    <MudDivider Class="my-4" />
+                    <MudText Typo="Typo.subtitle1" Color="Color.Primary">Bahan-bahan Menu</MudText>
+                    <MudTable Items="bahanList" Hover="true" Dense="true" Class="mb-2">
+                        <HeaderContent>
+                            <MudTh>Nama Bahan</MudTh>
+                            <MudTh>Jumlah Dibutuhkan</MudTh>
+                            <MudTh>Satuan</MudTh>
+                            <MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate Context="bahanContext">
+                            <MudTd>@bahanContext.NamaBahan</MudTd>
+                            <MudTd>
+                                <MudNumericField T="double" Value="@GetJumlahBahan(bahanContext.BahanId)" ValueChanged="@(v => SetJumlahBahan(bahanContext.BahanId, v))" Min="0" Variant="Variant.Outlined" Style="width:80px;" />
+                            </MudTd>
+                            <MudTd>@bahanContext.Satuan</MudTd>
+                            <MudTd>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => RemoveBahan(bahanContext.BahanId)" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                    <MudSelect T="StokBahan" Label="Tambah Bahan" @bind-Value="selectedBahan" Variant="Variant.Outlined" Dense="true" Class="mb-2" Style="min-width:200px;">
+                        <MudSelectItem T="StokBahan" Value="null">-- Pilih Bahan --</MudSelectItem>
+                        @foreach (var bahan in stokBahanList.Where(b => !menuBahanDict.ContainsKey(b.BahanId)))
+                        {
+                            <MudSelectItem T="StokBahan" Value="bahan">@bahan.NamaBahan (@bahan.Satuan)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Disabled="selectedBahan == null" OnClick="AddBahan">Tambah Bahan</MudButton>
+                    <MudDivider Class="my-4" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="!_isValid || _isSaving" OnClick="OnSubmit" Class="mr-2">
+                        @if (_isSaving) { <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" /> }
+                        Simpan
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="@(() => Navigation.NavigateTo("/daftar-menu-meja"))">Batal</MudButton>
+                </MudForm>
+            </MudPaper>
+        </MudContainer>
+    </Authorized>
+    <NotAuthorized>
+        <RedirectTo404 />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter] public int? menuId { get; set; }
+    [Inject] private NavigationManager Nav { get; set; }
+    private MudForm _form;
+    private bool _isValid = false;
+    private bool _isSaving = false;
+    private bool _isEdit = false;
+    private Menu menu = new();
+    private List<StokBahan> stokBahanList = new();
+    private List<StokBahan> bahanList = new();
+    private StokBahan? selectedBahan;
+    private Dictionary<int, double> menuBahanDict = new(); // BahanId -> JumlahDibutuhkan
+    private List<int> menuBahanAsal = new(); // Untuk tracking bahan asal
+    private HubConnection? hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        stokBahanList = await RepoResto.GetAllStokBahanAsync() ?? new();
+        int id = 0;
+        // Cek dari parameter route
+        if (menuId.HasValue && menuId.Value > 0)
+        {
+            id = menuId.Value;
+        }
+        else
+        {
+            // Cek dari query string
+            var uri = Nav.ToAbsoluteUri(Nav.Uri);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            int.TryParse(query.Get("menuId"), out id);
+        }
+        if (id > 0)
+        {
+            _isEdit = true;
+            menu = (await RepoResto.GetAllMenusAsync())?.FirstOrDefault(m => m.MenuId == id) ?? new Menu();
+            // Load bahan-bahan menu dari DB (bukan hanya navigation property)
+            using (var scope = ScopeFactory.CreateScope())
+            {
+                var repo = scope.ServiceProvider.GetRequiredService<RestoUnikom.Data.RepoResto>();
+                var menuBahans = await repo.GetMenuBahansByMenuIdAsync(menu.MenuId);
+                foreach (var mb in menuBahans)
+                {
+                    menuBahanDict[mb.BahanId] = mb.JumlahDibutuhkan;
+                    menuBahanAsal.Add(mb.BahanId);
+                }
+            }
+        }
+        bahanList = stokBahanList.Where(b => menuBahanDict.ContainsKey(b.BahanId)).ToList();
+        await InitSignalR();
+    }
+
+    private async Task InitSignalR()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/restohub"))
+            .WithAutomaticReconnect()
+            .Build();
+        await hubConnection.StartAsync();
+    }
+
+    private async Task OnSubmit()
+    {
+        await _form.Validate();
+        if (!_isValid) return;
+        _isSaving = true;
+        try
+        {
+            // Simpan menu utama
+            var savedMenuId = await RepoResto.AddOrUpdateMenuAsync(menu);
+            // Simpan bahan-bahan menu (add/update)
+            foreach (var (bahanId, jumlah) in menuBahanDict)
+            {
+                await RepoResto.AddOrUpdateMenuBahanAsync(savedMenuId, bahanId, jumlah);
+            }
+            // Hapus bahan yang dihapus user
+            foreach (var bahanId in menuBahanAsal.Except(menuBahanDict.Keys))
+            {
+                await RepoResto.DeleteMenuBahanAsync(savedMenuId, bahanId);
+            }
+            Snackbar.Add("Menu berhasil disimpan!", Severity.Success);
+            // Broadcast ke SignalR
+            if (hubConnection != null && hubConnection.State == HubConnectionState.Connected)
+            {
+                await hubConnection.SendAsync("BroadcastMenuStokChanged");
+            }
+            Navigation.NavigateTo("/daftar-menu-meja", true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Gagal menyimpan menu: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void AddBahan()
+    {
+        if (selectedBahan != null && !menuBahanDict.ContainsKey(selectedBahan.BahanId))
+        {
+            menuBahanDict[selectedBahan.BahanId] = 1;
+            bahanList = stokBahanList.Where(b => menuBahanDict.ContainsKey(b.BahanId)).ToList();
+            selectedBahan = null;
+        }
+    }
+
+    private void RemoveBahan(int bahanId)
+    {
+        if (menuBahanDict.ContainsKey(bahanId))
+        {
+            menuBahanDict.Remove(bahanId);
+            bahanList = stokBahanList.Where(b => menuBahanDict.ContainsKey(b.BahanId)).ToList();
+        }
+    }
+
+    private double GetJumlahBahan(int bahanId)
+    {
+        if (!menuBahanDict.ContainsKey(bahanId))
+            menuBahanDict[bahanId] = 1;
+        return menuBahanDict[bahanId];
+    }
+
+    private void SetJumlahBahan(int bahanId, double value)
+    {
+        if (menuBahanDict.ContainsKey(bahanId))
+            menuBahanDict[bahanId] = value;
+    }
+}

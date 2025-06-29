@@ -1,0 +1,12 @@
+@page "/404"
+@using MudBlazor
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex flex-column align-center justify-center" Style="min-height: 70vh;">
+    <MudPaper Elevation="3" Class="pa-8 text-center" Style="border-radius: 18px;">
+        <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Large" Color="Color.Error" Class="mb-2" />
+        <MudText Typo="Typo.h3" Color="Color.Error" Class="mb-2">404</MudText>
+        <MudText Typo="Typo.h5" Class="mb-2">Halaman Tidak Ditemukan</MudText>
+        <MudText Typo="Typo.body1" Class="mb-4">Maaf, halaman yang Anda cari tidak tersedia atau Anda tidak memiliki akses.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">Kembali ke Beranda</MudButton>
+    </MudPaper>
+</MudContainer>

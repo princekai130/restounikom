@@ -80,8 +80,7 @@ namespace RestoUnikom.WebUi2
                 .AddInteractiveServerRenderMode();
 
             // Registrasi endpoint SignalR
-            app.MapHub<MejaHub>("/mejahub");
-            app.MapHub<MenuHub>("/menuhub");
+            app.MapHub<RestoHub>("/restohub");
 
             // Pastikan folder Datas dan GambarMenu ada di output directory
             var datasPath = Path.Combine(AppContext.BaseDirectory, "Datas");

@@ -42,10 +42,12 @@
                                     <MudItem xs="12" sm="6" md="4" lg="3">
                                         <MudCard Class="menu-card-equal-height">
                                             <div class="menu-image-container">
-                                                <MudChip T="string" Color="@(menu.StokTersedia > 0 ? Color.Success : Color.Error)" Variant="Variant.Filled" Class="stock-badge">
-                                                    <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" Class="mr-1" />
-                                                    @menu.StokTersedia
-                                                </MudChip>
+                                                <div class="stock-badge-top">
+                                                    <MudChip T="string" Color="@(menu.StokTersedia > 0 ? Color.Success : Color.Error)" Variant="Variant.Filled">
+                                                        <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" Class="mr-1" />
+                                                        @menu.StokTersedia
+                                                    </MudChip>
+                                                </div>
                                                 <MudCardMedia Image="@menu.GambarMenu" Height="180" Class="menu-image" />
                                                 <AuthorizeView Roles="Pelayan,Admin">
                                                     <Authorized>
@@ -76,6 +78,64 @@
         </MudTabs>
     }
 </MudContainer>
+
+@* Floating Keranjang Button hanya untuk Pelayan/Admin *@
+<AuthorizeView Roles="Pelayan,Admin">
+    <Authorized>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Class="mud-button-root mud-button-circular mud-elevation-6"
+                   Style="position: fixed; bottom: 32px; right: 32px; z-index: 1000;"
+                   OnClick="ShowKeranjangDialog">
+            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" />
+        </MudButton>
+    </Authorized>
+</AuthorizeView>
+
+<style>
+.menu-card-equal-height {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 370px;
+}
+.menu-image-container {
+    position: relative;
+    width: 100%;
+    height: 180px;
+    overflow: hidden;
+}
+.menu-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.stock-badge-top {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+}
+.menu-title {
+    margin-bottom: 8px;
+    line-height: 1.3;
+    height: 2.6em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+.menu-description {
+    color: var(--mud-palette-text-secondary);
+    line-height: 1.4;
+    height: 2.8em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    margin-bottom: 12px;
+}
+</style>
 
 @code {
     private string teksPencarian = string.Empty;
